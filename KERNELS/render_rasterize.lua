@@ -1,38 +1,39 @@
 -- ========================================================================
 -- KERNELS/render_rasterize.lua
--- Pure Software Rasterization. No UI. No Engine States.
+-- Now with real-time Flat Shading and AABBGGRR color correction!
 -- ========================================================================
 local bit = require("bit")
 local ffi = require("ffi")
 local max, min, floor, ceil = math.max, math.min, math.floor, math.ceil
+local sqrt = math.sqrt
 
--- 1. The Binding
+-- 1. The Binding (Notice we added Vert_CX, CY, CZ!)
 return function(
     Visible_IDs, Count_Visible,
     Obj_X, Obj_Y, Obj_Z,
     Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ,
     Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount,
-    Vert_LX, Vert_LY, Vert_LZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid,
+    Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid,
     Tri_V1, Tri_V2, Tri_V3, Tri_Color,
     MainCamera, ScreenPtr, ZBuffer
 )
 
-    -- 2. The Internal Helper (Locks onto ScreenPtr and ZBuffer automatically)
+    -- The Internal Helper (Unchanged)
     local function RasterizeTriangle(x1,y1,z1, x2,y2,z2, x3,y3,z3, shadedColor, CANVAS_W, CANVAS_H)
         if y1 > y2 then x1,x2 = x2,x1; y1,y2 = y2,y1; z1,z2 = z2,z1 end
         if y1 > y3 then x1,x3 = x3,x1; y1,y3 = y3,y1; z1,z3 = z3,z1 end
         if y2 > y3 then x2,x3 = x3,x2; y2,y3 = y3,y2; z2,z3 = z3,z2 end
-
+        
         local total_height = y3 - y1
         if total_height <= 0 then return end
-
+        
         local inv_total = 1.0 / total_height
         local y_start, y_end = max(0, ceil(y1)), min(CANVAS_H - 1, floor(y3))
-
+        
         for y = y_start, y_end do
             local is_upper = y < y2
             local x_a, x_b, z_a, z_b
-
+            
             if is_upper then
                 local dy = y2 - y1; if dy == 0 then dy = 1 end
                 local t_a, t_b = (y-y1)*inv_total, (y-y1)/dy
@@ -44,20 +45,20 @@ return function(
                 x_a, z_a = x1+(x3-x1)*t_a, z1+(z3-z1)*t_a
                 x_b, z_b = x2+(x3-x2)*t_b, z2+(z3-z2)*t_b
             end
-
+            
             if x_a > x_b then x_a,x_b = x_b,x_a; z_a,z_b = z_b,z_a end
             local rw = x_b - x_a
-
+            
             if rw > 0 then
                 local z_step = (z_b - z_a) / rw
                 local start_x, end_x = max(0, ceil(x_a)), min(CANVAS_W - 1, floor(x_b))
                 local cz = z_a + z_step * (start_x - x_a)
                 local off = y * CANVAS_W
-
+                
                 for x = start_x, end_x do
-                    if cz < ZBuffer[off + x] then
+                    if cz < ZBuffer[off + x] then 
                         ZBuffer[off + x] = cz
-                        ScreenPtr[off + x] = shadedColor
+                        ScreenPtr[off + x] = shadedColor 
                     end
                     cz = cz + z_step
                 end
@@ -66,21 +67,20 @@ return function(
     end
 
     -- 3. The Compute Kernel
-    -- We pass canvas dimensions dynamically in case of window resizes!
     return function(CANVAS_W, CANVAS_H, HALF_W, HALF_H)
-
-        -- Clear Buffers
         local total_pixels = CANVAS_W * CANVAS_H
         ffi.fill(ScreenPtr, total_pixels * 4, 0)
         ffi.fill(ZBuffer, total_pixels * 4, 0x7F)
 
         local visible_total = Count_Visible[0]
-
         local cpx, cpy, cpz = MainCamera.x, MainCamera.y, MainCamera.z
         local cfw_x, cfw_y, cfw_z = MainCamera.fwx, MainCamera.fwy, MainCamera.fwz
         local crt_x, crt_z = MainCamera.rtx, MainCamera.rtz
         local cup_x, cup_y, cup_z = MainCamera.upx, MainCamera.upy, MainCamera.upz
         local cam_fov = MainCamera.fov
+
+        -- Hardcoded Directional Light Vector (Coming from top-left, pointing down into the screen)
+        local lx, ly, lz = 0.577, -0.577, 0.577
 
         for v = 0, visible_total - 1 do
             local id = Visible_IDs[v]
@@ -94,12 +94,15 @@ return function(
 
             for i = 0, vCount - 1 do
                 local idx = vStart + i
-                local lx, ly, lz = Vert_LX[idx], Vert_LY[idx], Vert_LZ[idx]
+                local lvx, lvy, lvz = Vert_LX[idx], Vert_LY[idx], Vert_LZ[idx]
 
                 -- Local to World
-                local wx = ox + lx*rx + ly*ux + lz*fx
-                local wy = oy + ly*uy + lz*fy
-                local wz = oz + lx*rz + ly*uz + lz*fz
+                local wx = ox + lvx*rx + lvy*ux + lvz*fx
+                local wy = oy + lvy*uy + lvz*fy
+                local wz = oz + lvx*rz + lvy*uz + lvz*fz
+
+                -- SAVE the world coords for lighting!
+                Vert_CX[idx], Vert_CY[idx], Vert_CZ[idx] = wx, wy, wz
 
                 -- World to Camera
                 local vdx, vdy, vdz = wx-cpx, wy-cpy, wz-cpz
@@ -116,9 +119,9 @@ return function(
                 end
             end
 
-            -- Phase B: Triangle Rasterization
+            -- Phase B: Triangle Rasterization & Shading
             local tStart, tCount = Obj_TriStart[id], Obj_TriCount[id]
-
+            
             for i = 0, tCount - 1 do
                 local idx = tStart + i
                 local i1, i2, i3 = Tri_V1[idx], Tri_V2[idx], Tri_V3[idx]
@@ -128,11 +131,43 @@ return function(
                     local px2, py2, pz2 = Vert_PX[i2], Vert_PY[i2], Vert_PZ[i2]
                     local px3, py3, pz3 = Vert_PX[i3], Vert_PY[i3], Vert_PZ[i3]
 
-                    -- Backface Culling Winding Check
+                    -- Backface Culling
                     local winding = (px2-px1)*(py3-py1) - (py2-py1)*(px3-px1)
                     if winding < 0 then
-                        -- For the dumb baseline, we just draw the raw Tri_Color without lighting
-                        RasterizeTriangle(px1,py1,pz1, px2,py2,pz2, px3,py3,pz3, Tri_Color[idx], CANVAS_W, CANVAS_H)
+                        
+                        -- 1. Grab World Coords for Normal Calculation
+                        local wx1, wy1, wz1 = Vert_CX[i1], Vert_CY[i1], Vert_CZ[i1]
+                        local wx2, wy2, wz2 = Vert_CX[i2], Vert_CY[i2], Vert_CZ[i2]
+                        local wx3, wy3, wz3 = Vert_CX[i3], Vert_CY[i3], Vert_CZ[i3]
+
+                        -- 2. Cross Product for Triangle Normal
+                        local nx = (wy1-wy2)*(wz1-wz3) - (wz1-wz2)*(wy1-wy3)
+                        local ny = (wz1-wz2)*(wx1-wx3) - (wx1-wx2)*(wz1-wz3)
+                        local nz = (wx1-wx2)*(wy1-wy3) - (wy1-wy2)*(wx1-wx3)
+                        
+                        local len = sqrt(nx*nx + ny*ny + nz*nz)
+                        if len == 0 then len = 1 end
+                        nx, ny, nz = nx/len, ny/len, nz/len
+
+                        -- 3. Lambertian Dot Product Shading
+                        local dot = max(0.1, (nx*lx + ny*ly + nz*lz))
+
+                        -- 4. Apply AABBGGRR Shading
+                        local tc = Tri_Color[idx]
+                        local a = bit.band(bit.rshift(tc, 24), 0xFF)
+                        local b = bit.band(bit.rshift(tc, 16), 0xFF)
+                        local g = bit.band(bit.rshift(tc, 8), 0xFF)
+                        local r = bit.band(tc, 0xFF)
+
+                        -- Multiply color by our light dot product, boost slightly (*1.2) for visibility
+                        r = min(255, r * dot * 1.2)
+                        g = min(255, g * dot * 1.2)
+                        b = min(255, b * dot * 1.2)
+
+                        -- Re-pack as AABBGGRR
+                        local shadedColor = bit.bor(bit.lshift(a, 24), bit.lshift(b, 16), bit.lshift(g, 8), r)
+
+                        RasterizeTriangle(px1,py1,pz1, px2,py2,pz2, px3,py3,pz3, shadedColor, CANVAS_W, CANVAS_H)
                     end
                 end
             end
