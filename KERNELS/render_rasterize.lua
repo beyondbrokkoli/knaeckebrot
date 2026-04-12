@@ -23,17 +23,17 @@ return function(
         if y1 > y2 then x1,x2 = x2,x1; y1,y2 = y2,y1; z1,z2 = z2,z1 end
         if y1 > y3 then x1,x3 = x3,x1; y1,y3 = y3,y1; z1,z3 = z3,z1 end
         if y2 > y3 then x2,x3 = x3,x2; y2,y3 = y3,y2; z2,z3 = z3,z2 end
-        
+
         local total_height = y3 - y1
         if total_height <= 0 then return end
-        
+
         local inv_total = 1.0 / total_height
         local y_start, y_end = max(0, ceil(y1)), min(CANVAS_H - 1, floor(y3))
-        
+
         for y = y_start, y_end do
             local is_upper = y < y2
             local x_a, x_b, z_a, z_b
-            
+
             if is_upper then
                 local dy = y2 - y1; if dy == 0 then dy = 1 end
                 local t_a, t_b = (y-y1)*inv_total, (y-y1)/dy
@@ -45,20 +45,20 @@ return function(
                 x_a, z_a = x1+(x3-x1)*t_a, z1+(z3-z1)*t_a
                 x_b, z_b = x2+(x3-x2)*t_b, z2+(z3-z2)*t_b
             end
-            
+
             if x_a > x_b then x_a,x_b = x_b,x_a; z_a,z_b = z_b,z_a end
             local rw = x_b - x_a
-            
+
             if rw > 0 then
                 local z_step = (z_b - z_a) / rw
                 local start_x, end_x = max(0, ceil(x_a)), min(CANVAS_W - 1, floor(x_b))
                 local cz = z_a + z_step * (start_x - x_a)
                 local off = y * CANVAS_W
-                
+
                 for x = start_x, end_x do
-                    if cz < ZBuffer[off + x] then 
+                    if cz < ZBuffer[off + x] then
                         ZBuffer[off + x] = cz
-                        ScreenPtr[off + x] = shadedColor 
+                        ScreenPtr[off + x] = shadedColor
                     end
                     cz = cz + z_step
                 end
@@ -108,8 +108,8 @@ return function(
                 local vdx, vdy, vdz = wx-cpx, wy-cpy, wz-cpz
                 local cz = vdx*cfw_x + vdy*cfw_y + vdz*cfw_z
 
-                if cz < 0.1 then 
-                    Vert_Valid[idx] = false 
+                if cz < 0.1 then
+                    Vert_Valid[idx] = false
                 else
                     local f = cam_fov / cz
                     Vert_PX[idx] = HALF_W + (vdx*crt_x + vdz*crt_z) * f
@@ -121,7 +121,7 @@ return function(
 
             -- Phase B: Triangle Rasterization & Shading
             local tStart, tCount = Obj_TriStart[id], Obj_TriCount[id]
-            
+
             for i = 0, tCount - 1 do
                 local idx = tStart + i
                 local i1, i2, i3 = Tri_V1[idx], Tri_V2[idx], Tri_V3[idx]
@@ -134,7 +134,7 @@ return function(
                     -- Backface Culling
                     local winding = (px2-px1)*(py3-py1) - (py2-py1)*(px3-px1)
                     if winding < 0 then
-                        
+
                         -- 1. Grab World Coords for Normal Calculation
                         local wx1, wy1, wz1 = Vert_CX[i1], Vert_CY[i1], Vert_CZ[i1]
                         local wx2, wy2, wz2 = Vert_CX[i2], Vert_CY[i2], Vert_CZ[i2]
@@ -144,7 +144,7 @@ return function(
                         local nx = (wy1-wy2)*(wz1-wz3) - (wz1-wz2)*(wy1-wy3)
                         local ny = (wz1-wz2)*(wx1-wx3) - (wx1-wx2)*(wz1-wz3)
                         local nz = (wx1-wx2)*(wy1-wy3) - (wy1-wy2)*(wx1-wx3)
-                        
+
                         local len = sqrt(nx*nx + ny*ny + nz*nz)
                         if len == 0 then len = 1 end
                         nx, ny, nz = nx/len, ny/len, nz/len
