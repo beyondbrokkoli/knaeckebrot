@@ -7,7 +7,38 @@ local Factory = require("sys_factory")
 
 local Seq_Physics = CreateSequence()
 local Seq_Render = CreateSequence()
+-- ========================================================================
+-- HELPER FUNCTIONS
+-- ========================================================================
+local pendingResize = false
+local resizeTimer = 0
+local isMouseCaptured = false
 
+local function UpdateCameraBasis()
+    local cy, sy = math.cos(MainCamera.yaw), math.sin(MainCamera.yaw)
+    local cp, sp = math.cos(MainCamera.pitch), math.sin(MainCamera.pitch)
+    
+    MainCamera.fwx, MainCamera.fwy, MainCamera.fwz = sy * cp, sp, cy * cp
+    MainCamera.rtx, MainCamera.rty, MainCamera.rtz = cy, 0, -sy
+    
+    MainCamera.upx = MainCamera.fwy * MainCamera.rtz
+    MainCamera.upy = MainCamera.fwz * MainCamera.rtx - MainCamera.fwx * MainCamera.rtz
+    MainCamera.upz = -MainCamera.fwy * MainCamera.rtx
+end
+
+-- We must call this on Boot AND on Resize to lock in the new pointers!
+local function BindRenderSequence()
+    Seq_Render:Slot(1, "KERNELS.camera_cull_dumb", Visible_IDs, Count_Visible) 
+    Seq_Render:Slot(2, "KERNELS.render_rasterize", 
+        Visible_IDs, Count_Visible, 
+        Obj_X, Obj_Y, Obj_Z, 
+        Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ, 
+        Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount, 
+        Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, 
+        Tri_V1, Tri_V2, Tri_V3, Tri_Color, 
+        MainCamera, ScreenPtr, ZBuffer -- <-- These pointers change on resize!
+    )
+end
 function love.load()
     ReinitBuffers()
 
@@ -25,25 +56,15 @@ function love.load()
         Obj_FWX, Obj_FWY, Obj_FWZ, Obj_RTX, Obj_RTY, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ
     )
 
-    -- 3. Bind Render (FIXED INDICES: 1 and 2)
-    Seq_Render:Slot(1, "KERNELS.camera_cull_dumb", Visible_IDs, Count_Visible)
-    Seq_Render:Slot(2, "KERNELS.render_rasterize",
-        Visible_IDs, Count_Visible,
-        Obj_X, Obj_Y, Obj_Z,
-        Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ,
-        Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount,
-        Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid,
-        Tri_V1, Tri_V2, Tri_V3, Tri_Color,
-        MainCamera, ScreenPtr, ZBuffer
-    )
+    BindRenderSequence()
 
     -- 4. Spawn the Universe
     -- A nice dark backing platform
     Factory.CreateSlideMesh(
         SLICE_SOLID_START, SLICE_SOLID_MAX, Count_Solid,
         0, -200, 800,
-        800, 800, 20,
-        0xFF222222
+        800, 20, 800,   -- <--- THE FIX: w=800, h=20, thickness=800
+        0xFF555555      -- Slightly lighter grey so the light catches it
     )
 
     -- THE HIGHLY DETAILED DONUT
@@ -61,14 +82,57 @@ function love.load()
         Obj_RotSpeedPitch[torus_id] = 2.2
     end
 end
-
+-- ========================================================================
+-- ENGINE TICKS
+-- ========================================================================
 function love.update(dt)
     dt = math.min(dt, 0.033)
-    -- Run the physics kernel to update rotations and basis vectors
+
+    -- 1. Handle Debounced Resizing
+    if pendingResize then
+        resizeTimer = resizeTimer - dt
+        if resizeTimer <= 0 then
+            ReinitBuffers()
+            BindRenderSequence() -- Re-lock the closures to the new buffers!
+            pendingResize = false
+        end
+        return -- Skip physics and camera logic while the window is rebuilding
+    end
+
+    -- 2. Freefly Camera Movement (WASD + EQ)
+    local s = 2000 * dt
+    if love.keyboard.isDown("w") then MainCamera.x, MainCamera.y, MainCamera.z = MainCamera.x + MainCamera.fwx * s, MainCamera.y + MainCamera.fwy * s, MainCamera.z + MainCamera.fwz * s end
+    if love.keyboard.isDown("s") then MainCamera.x, MainCamera.y, MainCamera.z = MainCamera.x - MainCamera.fwx * s, MainCamera.y - MainCamera.fwy * s, MainCamera.z - MainCamera.fwz * s end
+    if love.keyboard.isDown("a") then MainCamera.x, MainCamera.z = MainCamera.x - MainCamera.rtx * s, MainCamera.z - MainCamera.rtz * s end
+    if love.keyboard.isDown("d") then MainCamera.x, MainCamera.z = MainCamera.x + MainCamera.rtx * s, MainCamera.z + MainCamera.rtz * s end
+    if love.keyboard.isDown("e") then MainCamera.y = MainCamera.y - s end
+    if love.keyboard.isDown("q") then MainCamera.y = MainCamera.y + s end
+
+    -- ========================================================
+    -- VIRTUALBOX DEBUG FIX: Arrow Key Camera Rotation
+    -- ========================================================
+    local rotSpeed = 2.5 * dt
+    if love.keyboard.isDown("left") then MainCamera.yaw = MainCamera.yaw - rotSpeed end
+    if love.keyboard.isDown("right") then MainCamera.yaw = MainCamera.yaw + rotSpeed end
+    if love.keyboard.isDown("up") then MainCamera.pitch = MainCamera.pitch - rotSpeed end
+    if love.keyboard.isDown("down") then MainCamera.pitch = MainCamera.pitch + rotSpeed end
+
+    -- Clamp pitch to prevent flipping upside down (approx 90 degrees)
+    MainCamera.pitch = math.max(-1.56, math.min(1.56, MainCamera.pitch))
+    -- ========================================================
+
+    -- 3. Calculate new basis vectors based on mouse/keyboard movement
+    UpdateCameraBasis()
+
+    -- 4. Run Physics Sequence
     Seq_Physics:Run(SLICE_KINEMATIC_START, Count_Kinematic[0], dt)
 end
-
 function love.draw()
+    if pendingResize then
+        love.graphics.clear(0.05, 0.05, 0.05)
+        love.graphics.print("REBUILDING SWAPCHAIN...", 20, 20)
+        return
+    end
     Count_Visible[0] = 0
 
     local CullKernel = Seq_Render.Kernels[1]
@@ -89,4 +153,31 @@ function love.draw()
     love.graphics.setBlendMode("replace")
     love.graphics.draw(ScreenImage, 0, 0)
     love.graphics.setBlendMode("alpha")
+end
+-- ========================================================================
+-- INPUT & EVENTS
+-- ========================================================================
+function love.keypressed(key)
+    if key == "escape" then 
+        love.event.quit() 
+    elseif key == "j" then
+        isMouseCaptured = not isMouseCaptured
+        love.mouse.setRelativeMode(isMouseCaptured)
+    end
+end
+
+function love.mousemoved(x, y, dx, dy)
+    if isMouseCaptured then
+        local sensitivity = 0.002
+        MainCamera.yaw = MainCamera.yaw + (dx * sensitivity)
+        MainCamera.pitch = MainCamera.pitch + (dy * sensitivity)
+        
+        -- Clamp pitch so you don't flip upside down
+        MainCamera.pitch = math.max(-1.56, math.min(1.56, MainCamera.pitch))
+    end
+end
+
+function love.resize(w, h)
+    pendingResize = true
+    resizeTimer = 0.2
 end
