@@ -3,7 +3,7 @@
 -- ========================================================================
 require("sys_memory") -- Populates the global environment with our SoA
 local CreateSequence = require("sys_sequence")
-loacl Factory = require("sys_factory")
+local Factory = require("sys_factory")
 
 -- Instantiate our specific execution pipelines
 local Seq_Physics = CreateSequence()
@@ -11,30 +11,21 @@ local Seq_Render  = CreateSequence()
 
 function love.load()
     ReinitBuffers()
-
+-- ==========================================
+    -- WAKE UP THE CAMERA
     -- ==========================================
-    -- WIRING THE PHYSICS SEQUENCE
-    -- ==========================================
-    Seq_Physics:Slot(1, "KERNELS.phys_kinematic", 
-        Obj_X, Obj_Y, Obj_Z, Obj_VelX, Obj_VelY, Obj_VelZ
-    )
-    -- Seq_Physics:Slot(2, "KERNELS.phys_collision", ...) 
-
+    MainCamera.x, MainCamera.y, MainCamera.z = 0, 0, -400
+    MainCamera.yaw, MainCamera.pitch = 0, 0
+    
+    -- Identity Basis Vectors (Looking straight down positive Z)
+    MainCamera.fwx, MainCamera.fwy, MainCamera.fwz = 0, 0, 1
+    MainCamera.rtx, MainCamera.rty, MainCamera.rtz = 1, 0, 0
+    MainCamera.upx, MainCamera.upy, MainCamera.upz = 0, 1, 0
     -- ==========================================
     -- WIRING THE RENDER SEQUENCE
     -- ==========================================
     -- Notice how we wire the shared FFI Counters here!
-    -- Seq_Render:Slot(1, "KERNELS.camera_cull",
-        -- Obj_X, Obj_Y, Obj_Z, Obj_Radius, 
-        -- Visible_IDs, Count_Visible, MainCamera
-    --)
 
-    --Seq_Render:Slot(2, "KERNELS.render_rasterize",
-        --Visible_IDs, Count_Visible, 
-        --Tri_V1, Tri_V2, Tri_V3, Tri_Color,
-        --ScreenPtr, ZBuffer
-    --)
-    -- Add this to your love.load()
     Seq_Render:Slot(1, "KERNELS.camera_cull_dumb", Visible_IDs, Count_Visible)
 
     Seq_Render:Slot(2, "KERNELS.render_rasterize",
@@ -46,6 +37,29 @@ function love.load()
         Tri_V1, Tri_V2, Tri_V3, Tri_Color,
         MainCamera, ScreenPtr, ZBuffer
     )
+-- 1. Spawn a giant static slide base into the Solid Slice
+Factory.CreateSlideMesh(
+    SLICE_SOLID_START, SLICE_SOLID_MAX, Count_Solid,
+    0, 0, 800,      -- x, y, z (Pushed out into the screen)
+    500, 300, 20,   -- width, height, thickness
+    0x00FF00        -- Green
+)
+
+-- 2. Spawn a Kinematic Torus that we will make spin!
+local torus_id = Factory.CreateTorus(
+    SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic,
+    0, 0, 600,      -- x, y, z (Slightly closer to camera)
+    100, 30,        -- mainRadius, tubeRadius
+    16, 8,          -- segments, sides
+    0xFF0000        -- Red
+)
+
+-- Because we have the direct ID, we can initialize its physics state manually:
+if torus_id then
+    Obj_RotSpeedYaw[torus_id] = 2.0
+    Obj_RotSpeedPitch[torus_id] = 1.0
+end
+
 end
 
 function love.update(dt)

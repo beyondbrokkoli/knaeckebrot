@@ -5,35 +5,33 @@
 local ffi = require("ffi")
 local bit = require("bit")
 local pi, cos, sin, floor = math.pi, math.cos, math.sin, math.floor
+local sqrt = math.sqrt
 
 local Factory = {}
 
--- ========================================================================
--- THE MASTER ALLOCATOR
--- Replaces CreateTriObject. Claims a specific ID inside a requested Slice.
--- ========================================================================
+-- ==========================================
+-- CORE FFI ALLOCATOR (Replaces CreateTriObject)
+-- ==========================================
 function Factory.AllocateObject(slice_start, slice_max, count_ptr, x, y, z, vCount, tCount, radius)
     -- 1. Get the current active count for this specific slice
     local current_count = count_ptr[0]
     local id = slice_start + current_count
 
-    -- 2. Prevent Memory Overflows!
+    -- 2. Prevent Memory Overflows
     if id > slice_max then
         print("[FACTORY ERROR] Slice Overflow! Cannot allocate ID " .. id)
         return nil
     end
 
-    -- 3. Claim the memory slot by incrementing the shared pointer
+    -- 3. Claim the memory slot by incrementing the shared pointers
     count_ptr[0] = current_count + 1
-    
-    -- (Optional: Track total objects if needed for debugging)
     NumObjects[0] = NumObjects[0] + 1
 
-    -- 4. Write to the SoA Motherboard
+    -- 4. Spatial Setup
     Obj_X[id], Obj_Y[id], Obj_Z[id] = x, y, z
+    Obj_Yaw[id], Obj_Pitch[id] = 0, 0
     Obj_VelX[id], Obj_VelY[id], Obj_VelZ[id] = 0, 0, 0
     Obj_RotSpeedYaw[id], Obj_RotSpeedPitch[id] = 0, 0
-    Obj_Yaw[id], Obj_Pitch[id] = 0, 0
     Obj_Radius[id] = radius or 50
 
     -- Identity Basis Vectors
@@ -54,19 +52,134 @@ function Factory.AllocateObject(slice_start, slice_max, count_ptr, x, y, z, vCou
     return id
 end
 
--- ========================================================================
--- GEOMETRY GENERATORS
--- ========================================================================
+-- ==========================================
+-- GEOMETRY PRIMITIVES
+-- ==========================================
+
+function Factory.CreateSlideMesh(slice_start, slice_max, count_ptr, x, y, z, w, h, thickness, color)
+    local maxDiagonal = sqrt((w/2)^2 + (h/2)^2 + (thickness/2)^2)
+    local id = Factory.AllocateObject(slice_start, slice_max, count_ptr, x, y, z, 8, 12, maxDiagonal)
+    if not id then return nil end
+
+    local vStart, tStart = Obj_VertStart[id], Obj_TriStart[id]
+    local hw, hh, ht = w/2, h/2, thickness/2
+
+    local verts = {
+        {-hw, -hh, -ht}, {hw, -hh, -ht}, {hw, hh, -ht}, {-hw, hh, -ht},
+        {-hw, -hh,  ht}, {hw, -hh,  ht}, {hw, hh,  ht}, {-hw, hh,  ht}
+    }
+
+    for i, v in ipairs(verts) do
+        local vIdx = vStart + (i - 1)
+        Vert_LX[vIdx], Vert_LY[vIdx], Vert_LZ[vIdx] = v[1], v[2], v[3]
+    end
+
+    local indices = {
+        0,2,1, 0,3,2, 4,5,6, 4,6,7, 0,1,5, 0,5,4,
+        1,2,6, 1,6,5, 2,3,7, 2,7,6, 3,0,4, 3,4,7
+    }
+
+    for i = 1, #indices, 3 do
+        local tIdx = tStart + floor((i-1)/3)
+        Tri_V1[tIdx], Tri_V2[tIdx], Tri_V3[tIdx] = indices[i] + vStart, indices[i+1] + vStart, indices[i+2] + vStart
+        Tri_Color[tIdx] = color
+    end
+    return id
+end
+
+function Factory.CreatePropCube(slice_start, slice_max, count_ptr, x, y, z, size, color)
+    local maxDiagonal = sqrt(3 * (size/2)^2)
+    local id = Factory.AllocateObject(slice_start, slice_max, count_ptr, x, y, z, 8, 12, maxDiagonal)
+    if not id then return nil end
+
+    local vStart, tStart = Obj_VertStart[id], Obj_TriStart[id]
+    local hs = size / 2
+
+    local verts = {
+        {-hs, -hs, -hs}, {hs, -hs, -hs}, {hs, hs, -hs}, {-hs, hs, -hs},
+        {-hs, -hs,  hs}, {hs, -hs,  hs}, {hs, hs,  hs}, {-hs, hs,  hs}
+    }
+
+    for i, v in ipairs(verts) do
+        local vIdx = vStart + (i - 1)
+        Vert_LX[vIdx], Vert_LY[vIdx], Vert_LZ[vIdx] = v[1], v[2], v[3]
+    end
+
+    local indices = {
+        0,2,1, 0,3,2, 4,5,6, 4,6,7, 0,1,5, 0,5,4,
+        1,2,6, 1,6,5, 2,3,7, 2,7,6, 3,0,4, 3,4,7
+    }
+
+    for i = 1, #indices, 3 do
+        local tIdx = tStart + floor((i-1)/3)
+        Tri_V1[tIdx], Tri_V2[tIdx], Tri_V3[tIdx] = indices[i] + vStart, indices[i+1] + vStart, indices[i+2] + vStart
+        Tri_Color[tIdx] = color
+    end
+    return id
+end
+
+function Factory.CreatePropPyramid(slice_start, slice_max, count_ptr, x, y, z, size, color)
+    local maxDiagonal = sqrt(size^2 + size^2 + size^2)
+    local id = Factory.AllocateObject(slice_start, slice_max, count_ptr, x, y, z, 5, 6, maxDiagonal)
+    if not id then return nil end
+
+    local vStart, tStart = Obj_VertStart[id], Obj_TriStart[id]
+    local verts = {
+        {0, size, 0}, {-size, -size, -size}, {size, -size, -size},
+        {size, -size, size}, {-size, -size, size}
+    }
+
+    for i, v in ipairs(verts) do
+        local vIdx = vStart + (i - 1)
+        Vert_LX[vIdx], Vert_LY[vIdx], Vert_LZ[vIdx] = v[1], v[2], v[3]
+    end
+
+    local indices = { 0,1,2, 0,2,3, 0,3,4, 0,4,1, 1,4,3, 1,3,2 }
+
+    for i = 1, #indices, 3 do
+        local tIdx = tStart + floor((i-1)/3)
+        Tri_V1[tIdx], Tri_V2[tIdx], Tri_V3[tIdx] = vStart + indices[i], vStart + indices[i+1], vStart + indices[i+2]
+        Tri_Color[tIdx] = color
+    end
+    return id
+end
+
+function Factory.CreateDataSpike(slice_start, slice_max, count_ptr, x, y, z, height, color)
+    local w = height * 0.3
+    local maxDiagonal = sqrt(w^2 + height^2)
+    local id = Factory.AllocateObject(slice_start, slice_max, count_ptr, x, y, z, 6, 8, maxDiagonal)
+    if not id then return nil end
+
+    local vStart, tStart = Obj_VertStart[id], Obj_TriStart[id]
+    local verts = {
+        {0, height, 0}, {0, -height, 0},
+        {w, 0, w}, {w, 0, -w}, {-w, 0, -w}, {-w, 0, w}
+    }
+
+    for j, v in ipairs(verts) do
+        local vIdx = vStart + (j - 1)
+        Vert_LX[vIdx], Vert_LY[vIdx], Vert_LZ[vIdx] = v[1], v[2], v[3]
+    end
+
+    local indices = { 0,2,3, 0,3,4, 0,4,5, 0,5,2, 1,3,2, 1,4,3, 1,5,4, 1,2,5 }
+
+    for j = 1, #indices, 3 do
+        local tIdx = tStart + floor((j-1)/3)
+        Tri_V1[tIdx], Tri_V2[tIdx], Tri_V3[tIdx] = indices[j] + vStart, indices[j+1] + vStart, indices[j+2] + vStart
+        Tri_Color[tIdx] = color
+    end
+    return id
+end
 
 function Factory.CreateTorus(slice_start, slice_max, count_ptr, cx, cy, cz, mainRadius, tubeRadius, segments, sides, baseColor)
     local vCount = segments * sides
     local tCount = segments * sides * 2
-    
-    local id = Factory.AllocateObject(slice_start, slice_max, count_ptr, cx, cy, cz, vCount, tCount, mainRadius + tubeRadius)
+    local bound = mainRadius + tubeRadius
+
+    local id = Factory.AllocateObject(slice_start, slice_max, count_ptr, cx, cy, cz, vCount, tCount, bound)
     if not id then return nil end
 
-    local vStart = Obj_VertStart[id]
-    local tStart = Obj_TriStart[id]
+    local vStart, tStart = Obj_VertStart[id], Obj_TriStart[id]
     local r, g, b = bit.band(bit.rshift(baseColor, 16), 0xFF), bit.band(bit.rshift(baseColor, 8), 0xFF), bit.band(baseColor, 0xFF)
     local altColor = bit.bor(0xFF000000, bit.lshift(floor(r * 0.6), 16), bit.lshift(floor(g * 0.6), 8), floor(b * 0.6))
 
@@ -90,83 +203,44 @@ function Factory.CreateTorus(slice_start, slice_max, count_ptr, cx, cy, cz, main
             local a, b_idx = (i * sides + j) + vStart, (i_next * sides + j) + vStart
             local c, d = (i_next * sides + j_next) + vStart, (i * sides + j_next) + vStart
             local col = (i + j) % 2 == 0 and baseColor or altColor
-            Tri_V1[tIdx], Tri_V2[tIdx], Tri_V3[tIdx] = a, c, b_idx; Tri_Color[tIdx] = col; tIdx = tIdx + 1
-            Tri_V1[tIdx], Tri_V2[tIdx], Tri_V3[tIdx] = a, d, c; Tri_Color[tIdx] = col; tIdx = tIdx + 1
+
+            Tri_V1[tIdx], Tri_V2[tIdx], Tri_V3[tIdx] = a, c, b_idx
+            Tri_Color[tIdx] = col; tIdx = tIdx + 1
+
+            Tri_V1[tIdx], Tri_V2[tIdx], Tri_V3[tIdx] = a, d, c
+            Tri_Color[tIdx] = col; tIdx = tIdx + 1
         end
     end
     return id
 end
 
-function Factory.CreateCylinder(slice_start, slice_max, count_ptr, cx, cy, cz, radius, height, segments, baseColor)
-    local vCount = segments * 2 + 2
-    local tCount = segments * 4
-    
-    local id = Factory.AllocateObject(slice_start, slice_max, count_ptr, cx, cy, cz, vCount, tCount, height)
+function Factory.CreateTerminalSlide(slice_start, slice_max, count_ptr, x, y, z, w, h, thickness, color)
+    local maxDiagonal = sqrt((w/2)^2 + (h/2)^2 + (thickness/2)^2)
+    local id = Factory.AllocateObject(slice_start, slice_max, count_ptr, x, y, z, 8, 12, maxDiagonal)
     if not id then return nil end
 
     local vStart, tStart = Obj_VertStart[id], Obj_TriStart[id]
-    local r, g, b = bit.band(bit.rshift(baseColor, 16), 0xFF), bit.band(bit.rshift(baseColor, 8), 0xFF), bit.band(baseColor, 0xFF)
-    local altColor = bit.bor(0xFF000000, bit.lshift(floor(r * 0.5), 16), bit.lshift(floor(g * 0.5), 8), floor(b * 0.5))
+    local hw, hh, ht = w/2, h/2, thickness/2
 
-    for i = 0, segments - 1 do
-        local angle = (i / segments) * pi * 2
-        local x, z = cos(angle) * radius, sin(angle) * radius
-        Vert_LX[vStart + i], Vert_LY[vStart + i], Vert_LZ[vStart + i] = x, -height/2, z
-        Vert_LX[vStart + segments + i], Vert_LY[vStart + segments + i], Vert_LZ[vStart + segments + i] = x, height/2, z
+    local verts = {
+        {-hw, -hh, -ht}, {hw, -hh, -ht}, {hw, hh, -ht}, {-hw, hh, -ht},
+        {-hw, -hh, ht}, {hw, -hh, ht}, {hw, hh, ht}, {-hw, hh, ht}
+    }
+    for i, v in ipairs(verts) do
+        local vIdx = vStart + (i - 1)
+        Vert_LX[vIdx], Vert_LY[vIdx], Vert_LZ[vIdx] = v[1], v[2], v[3]
     end
 
-    local bCap, tCap = vStart + segments * 2, vStart + segments * 2 + 1
-    Vert_LX[bCap], Vert_LY[bCap], Vert_LZ[bCap] = 0, -height/2, 0
-    Vert_LX[tCap], Vert_LY[tCap], Vert_LZ[tCap] = 0, height/2, 0
-
-    local tIdx = tStart
-    for i = 0, segments - 1 do
-        local next_i = (i + 1) % segments
-        local col = (i % 2 == 0) and baseColor or altColor
-        Tri_V1[tIdx], Tri_V2[tIdx], Tri_V3[tIdx] = vStart + next_i, vStart + i, vStart + segments + i; Tri_Color[tIdx] = col; tIdx = tIdx + 1
-        Tri_V1[tIdx], Tri_V2[tIdx], Tri_V3[tIdx] = vStart + next_i, vStart + segments + i, vStart + segments + next_i; Tri_Color[tIdx] = col; tIdx = tIdx + 1
-        Tri_V1[tIdx], Tri_V2[tIdx], Tri_V3[tIdx] = bCap, vStart + i, vStart + next_i; Tri_Color[tIdx] = col; tIdx = tIdx + 1
-        Tri_V1[tIdx], Tri_V2[tIdx], Tri_V3[tIdx] = tCap, vStart + segments + next_i, vStart + segments + i; Tri_Color[tIdx] = col; tIdx = tIdx + 1
-    end
-    return id
-end
-
-function Factory.CreateSphere(slice_start, slice_max, count_ptr, cx, cy, cz, radius, rings, segments, baseColor)
-    local vCount = (rings + 1) * (segments + 1)
-    local tCount = rings * segments * 2
-    
-    local id = Factory.AllocateObject(slice_start, slice_max, count_ptr, cx, cy, cz, vCount, tCount, radius)
-    if not id then return nil end
-
-    local vStart, tStart = Obj_VertStart[id], Obj_TriStart[id]
-    local tIdx = tStart
-
-    local vIdx = vStart
-    for r = 0, rings do
-        local v = r / rings
-        local phi = v * math.pi
-        for s = 0, segments do
-            local u = s / segments
-            local theta = u * math.pi * 2
-            local x = radius * math.sin(phi) * math.cos(theta)
-            local y = radius * math.cos(phi)
-            local z = radius * math.sin(phi) * math.sin(theta)
-            Vert_LX[vIdx], Vert_LY[vIdx], Vert_LZ[vIdx] = x, y, z
-            vIdx = vIdx + 1
-        end
+    local indices = {
+        0,2,1, 0,3,2, 4,5,6, 4,6,7, 0,1,5, 0,5,4,
+        1,2,6, 1,6,5, 2,3,7, 2,7,6, 3,0,4, 3,4,7
+    }
+    for i = 1, #indices, 3 do
+        local tIdx = tStart + floor((i-1)/3)
+        Tri_V1[tIdx], Tri_V2[tIdx], Tri_V3[tIdx] = indices[i] + vStart, indices[i+1] + vStart, indices[i+2] + vStart
+        Tri_Color[tIdx] = color
     end
 
-    for r = 0, rings - 1 do
-        for s = 0, segments - 1 do
-            local a = vStart + (r * (segments + 1)) + s
-            local b_idx = vStart + (r * (segments + 1)) + s + 1
-            local c = vStart + ((r + 1) * (segments + 1)) + s + 1
-            local d = vStart + ((r + 1) * (segments + 1)) + s
-            local col = ((r + s) % 2 == 0) and baseColor or 0xFF444444
-            Tri_V1[tIdx], Tri_V2[tIdx], Tri_V3[tIdx] = a, b_idx, c; Tri_Color[tIdx] = col; tIdx = tIdx + 1
-            Tri_V1[tIdx], Tri_V2[tIdx], Tri_V3[tIdx] = a, c, d; Tri_Color[tIdx] = col; tIdx = tIdx + 1
-        end
-    end
     return id
 end
 

@@ -63,6 +63,8 @@ end
 
 local process_manifest = {
     ["sys_memory.lua"] = "BUILD/sys_memory.lua",
+--    ["sys_factory.lua"] = "BUILD/sys_factory.lua",
+--    ["sys_sequence.lua"] = "BUILD/sys_sequence.lua",
     ["KERNELS/camera_cull_dumb.lua"] = "BUILD/KERNELS/camera_cull_dumb.lua",
     ["KERNELS/render_rasterize.lua"] = "BUILD/KERNELS/render_rasterize.lua",
     ["main.lua"] = "BUILD/main.lua",
