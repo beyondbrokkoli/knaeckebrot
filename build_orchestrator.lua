@@ -63,12 +63,14 @@ end
 
 local process_manifest = {
     ["sys_memory.lua"] = "BUILD/sys_memory.lua",
---    ["sys_factory.lua"] = "BUILD/sys_factory.lua",
---    ["sys_sequence.lua"] = "BUILD/sys_sequence.lua",
---    ["KERNELS/camera_cull_dumb.lua"] = "BUILD/KERNELS/camera_cull_dumb.lua",
+    ["sys_factory.lua"] = "BUILD/sys_factory.lua",
+    ["sys_sequence.lua"] = "BUILD/sys_sequence.lua",
+    ["KERNELS/camera_cull_dumb.lua"] = "BUILD/KERNELS/camera_cull_dumb.lua",
     ["KERNELS/render_rasterize.lua"] = "BUILD/KERNELS/render_rasterize.lua",
---    ["KERNELS/phys_kinematics.lua"] = "BUILD/KERNELS/phys_kinematics.lua",
+    ["KERNELS/phys_kinematics.lua"] = "BUILD/KERNELS/phys_kinematics.lua",
     ["main.lua"] = "BUILD/main.lua",
+    ["conf.lua"] = "BUILD/conf.lua",
+    ["core/bench.lua"] = "BUILD/core/bench.lua",
 }
 local raw_manifest = {} -- now empty because we broke free from json chains
 local function setup_build_dir(dir)
@@ -107,6 +109,7 @@ local function get_sorted_files()
 end
 if not setup_build_dir("BUILD") then os.exit(1) end
 if not setup_build_dir("BUILD/KERNELS") then os.exit(1) end
+if not setup_build_dir("BUILD/core") then os.exit(1) end
 print("--- MOUNTING TO BUILD/ ---")
 for src, dest in pairs(process_manifest) do
     if strip_to_target(src, dest) then print("  |- (Stripped) " .. src) end

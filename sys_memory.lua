@@ -7,10 +7,19 @@ local ffi = require("ffi")
 -- ==========================================
 -- [1] THE UNIVERSE BOUNDARIES (Static Numbers)
 -- ==========================================
+
+-- sys_memory.lua
 MAX_OBJS = 1024
+MAX_TOTAL_VERTS = 250000 -- Give yourself plenty of headroom!
+MAX_TOTAL_TRIS = 500000  -- Half a million triangles of capacity
+
+
+
 MAX_SLIDES = 64
-MAX_TOTAL_VERTS = MAX_OBJS * 24
-MAX_TOTAL_TRIS  = MAX_OBJS * 36
+-- MAX_TOTAL_VERTS = MAX_OBJS * 24
+-- MAX_TOTAL_TRIS  = MAX_OBJS * 36
+
+
 
 B_MinX, B_MinY, B_MinZ = -8000, -4000, -2000
 B_MaxX, B_MaxY, B_MaxZ = 8000, 4000, 15000
