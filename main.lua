@@ -32,9 +32,9 @@ local function BindRenderSequence()
 --    Seq_Render:Slot(1, "KERNELS.camera_cull_dumb", Visible_IDs, Count_Visible)
 -- Replace camera_cull_dumb with camera_cull_smart
     -- Notice we must now pass Obj_X, Y, Z, and Obj_Radius into the binding!
-    Seq_Render:Slot(1, "KERNELS.camera_cull_smart", 
-        Visible_IDs, Count_Visible, 
-        Obj_X, Obj_Y, Obj_Z, Obj_Radius, 
+    Seq_Render:Slot(1, "KERNELS.camera_cull_smart",
+        Visible_IDs, Count_Visible,
+        Obj_X, Obj_Y, Obj_Z, Obj_Radius,
         MainCamera
     )
     Seq_Render:Slot(2, "KERNELS.render_rasterize",

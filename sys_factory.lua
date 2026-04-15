@@ -12,7 +12,7 @@ local Factory = {}
 -- ==========================================
 -- CORE FFI ALLOCATOR (Replaces CreateTriObject)
 -- ==========================================
-function Factory.AllocateObject(slice_start, slice_max, count_ptr, x, y, z, vCount, tCount, radius)
+local function AllocateObject(slice_start, slice_max, count_ptr, x, y, z, vCount, tCount, radius)
     -- 1. Get the current active count for this specific slice
     local current_count = count_ptr[0]
     local id = slice_start + current_count
@@ -58,7 +58,7 @@ end
 
 function Factory.CreateSlideMesh(slice_start, slice_max, count_ptr, x, y, z, w, h, thickness, color)
     local maxDiagonal = sqrt((w/2)^2 + (h/2)^2 + (thickness/2)^2)
-    local id = Factory.AllocateObject(slice_start, slice_max, count_ptr, x, y, z, 8, 12, maxDiagonal)
+    local id = AllocateObject(slice_start, slice_max, count_ptr, x, y, z, 8, 12, maxDiagonal)
     if not id then return nil end
 
     local vStart, tStart = Obj_VertStart[id], Obj_TriStart[id]
@@ -89,7 +89,7 @@ end
 
 function Factory.CreatePropCube(slice_start, slice_max, count_ptr, x, y, z, size, color)
     local maxDiagonal = sqrt(3 * (size/2)^2)
-    local id = Factory.AllocateObject(slice_start, slice_max, count_ptr, x, y, z, 8, 12, maxDiagonal)
+    local id = AllocateObject(slice_start, slice_max, count_ptr, x, y, z, 8, 12, maxDiagonal)
     if not id then return nil end
 
     local vStart, tStart = Obj_VertStart[id], Obj_TriStart[id]
@@ -120,7 +120,7 @@ end
 
 function Factory.CreatePropPyramid(slice_start, slice_max, count_ptr, x, y, z, size, color)
     local maxDiagonal = sqrt(size^2 + size^2 + size^2)
-    local id = Factory.AllocateObject(slice_start, slice_max, count_ptr, x, y, z, 5, 6, maxDiagonal)
+    local id = AllocateObject(slice_start, slice_max, count_ptr, x, y, z, 5, 6, maxDiagonal)
     if not id then return nil end
 
     local vStart, tStart = Obj_VertStart[id], Obj_TriStart[id]
@@ -147,7 +147,7 @@ end
 function Factory.CreateDataSpike(slice_start, slice_max, count_ptr, x, y, z, height, color)
     local w = height * 0.3
     local maxDiagonal = sqrt(w^2 + height^2)
-    local id = Factory.AllocateObject(slice_start, slice_max, count_ptr, x, y, z, 6, 8, maxDiagonal)
+    local id = AllocateObject(slice_start, slice_max, count_ptr, x, y, z, 6, 8, maxDiagonal)
     if not id then return nil end
 
     local vStart, tStart = Obj_VertStart[id], Obj_TriStart[id]
@@ -176,7 +176,7 @@ function Factory.CreateTorus(slice_start, slice_max, count_ptr, cx, cy, cz, main
     local tCount = segments * sides * 2
     local bound = mainRadius + tubeRadius
 
-    local id = Factory.AllocateObject(slice_start, slice_max, count_ptr, cx, cy, cz, vCount, tCount, bound)
+    local id = AllocateObject(slice_start, slice_max, count_ptr, cx, cy, cz, vCount, tCount, bound)
     if not id then return nil end
 
     local vStart, tStart = Obj_VertStart[id], Obj_TriStart[id]
@@ -216,7 +216,7 @@ end
 
 function Factory.CreateTerminalSlide(slice_start, slice_max, count_ptr, x, y, z, w, h, thickness, color)
     local maxDiagonal = sqrt((w/2)^2 + (h/2)^2 + (thickness/2)^2)
-    local id = Factory.AllocateObject(slice_start, slice_max, count_ptr, x, y, z, 8, 12, maxDiagonal)
+    local id = AllocateObject(slice_start, slice_max, count_ptr, x, y, z, 8, 12, maxDiagonal)
     if not id then return nil end
 
     local vStart, tStart = Obj_VertStart[id], Obj_TriStart[id]
@@ -243,16 +243,14 @@ function Factory.CreateTerminalSlide(slice_start, slice_max, count_ptr, x, y, z,
 
     return id
 end
--- ========================================================================
--- DOD TORUS KNOT GENERATOR
--- ========================================================================
+
 function Factory.CreateTorusKnot(slice_start, slice_max, count_ptr, cx, cy, cz, scale, tubeRadius, p, q, segments, sides, baseColor)
     local vCount, tCount = segments * sides, segments * sides * 2
-    local id = Factory.AllocateObject(slice_start, slice_max, count_ptr, cx, cy, cz, vCount, tCount, scale * 3)
+    local id = AllocateObject(slice_start, slice_max, count_ptr, cx, cy, cz, vCount, tCount, scale * 3)
     if not id then return nil end
 
     local vStart, tStart = Obj_VertStart[id], Obj_TriStart[id]
-    
+
     local function getKnotPos(u)
         local theta = u * pi * 2
         local r = scale * (2 + cos(p * theta))
@@ -267,11 +265,11 @@ function Factory.CreateTorusKnot(slice_start, slice_max, count_ptr, cx, cy, cz, 
         local T = {p2[1] - p1[1], p2[2] - p1[2], p2[3] - p1[3]}
         local B = {p1[1] + p2[1], p1[2] + p2[2], p1[3] + p2[3]}
         local N = {T[2]*B[3] - T[3]*B[2], T[3]*B[1] - T[1]*B[3], T[1]*B[2] - T[2]*B[1]}
-        
+
         local lenN = math.sqrt(N[1]^2 + N[2]^2 + N[3]^2)
         if lenN == 0 then lenN = 1 end
         N = {N[1]/lenN, N[2]/lenN, N[3]/lenN}
-        
+
         local bitan = {T[2]*N[3] - T[3]*N[2], T[3]*N[1] - T[1]*N[3], T[1]*N[2] - T[2]*N[1]}
         local lenB = math.sqrt(bitan[1]^2 + bitan[2]^2 + bitan[3]^2)
         if lenB == 0 then lenB = 1 end
@@ -295,7 +293,7 @@ function Factory.CreateTorusKnot(slice_start, slice_max, count_ptr, cx, cy, cz, 
             local next_j = (j + 1) % sides
             local a, b_idx = vStart + i * sides + j, vStart + next_i * sides + j
             local c, d = vStart + next_i * sides + next_j, vStart + i * sides + next_j
-            
+
             -- Checkerboard styling
             local col = ((i + j) % 2 == 0) and baseColor or 0xFF444444
             Tri_V1[tIdx], Tri_V2[tIdx], Tri_V3[tIdx] = a, c, b_idx; Tri_Color[tIdx] = col; tIdx = tIdx + 1
@@ -311,17 +309,17 @@ end
 -- ========================================================================
 function Factory.CreateMegaknot(slice_start, slice_max, count_ptr, x, y, z)
     -- FFI Endianness: AABBGGRR. Hot Magenta!
-    local magenta = 0xFFFF00FF 
-    
+    local magenta = 0xFFFF00FF
+
     -- Parameters: radius=1500, tube=400, p=4, q=9
     -- Resolution: 800 segments * 150 sides = 120,000 Vertices & 240,000 Triangles
     local id = Factory.CreateTorusKnot(
-        slice_start, slice_max, count_ptr, 
-        x, y, z, 
-        1500, 400, 4, 9, 
+        slice_start, slice_max, count_ptr,
+        x, y, z,
+        1500, 400, 4, 9,
         800, 150, magenta
     )
-    
+
     if id then
         -- Override default allocations
         Obj_HomeIdx[id] = -1
@@ -329,7 +327,7 @@ function Factory.CreateMegaknot(slice_start, slice_max, count_ptr, x, y, z)
         Obj_RotSpeedYaw[id] = 0.8
         Obj_RotSpeedPitch[id] = -0.4
     end
-    
+
     return id
 end
 return Factory
