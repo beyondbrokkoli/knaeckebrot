@@ -56,8 +56,9 @@ end
 -- GEOMETRY PRIMITIVES
 -- ==========================================
 
+-- In sys_factory.lua
 function Factory.CreateSlideMesh(slice_start, slice_max, count_ptr, x, y, z, w, h, thickness, color)
-    local maxDiagonal = sqrt((w/2)^2 + (h/2)^2 + (thickness/2)^2)
+    local maxDiagonal = math.sqrt((w/2)^2 + (h/2)^2 + (thickness/2)^2)
     local id = AllocateObject(slice_start, slice_max, count_ptr, x, y, z, 8, 12, maxDiagonal)
     if not id then return nil end
 
@@ -68,7 +69,6 @@ function Factory.CreateSlideMesh(slice_start, slice_max, count_ptr, x, y, z, w, 
         {-hw, -hh, -ht}, {hw, -hh, -ht}, {hw, hh, -ht}, {-hw, hh, -ht},
         {-hw, -hh,  ht}, {hw, -hh,  ht}, {hw, hh,  ht}, {-hw, hh,  ht}
     }
-
     for i, v in ipairs(verts) do
         local vIdx = vStart + (i - 1)
         Vert_LX[vIdx], Vert_LY[vIdx], Vert_LZ[vIdx] = v[1], v[2], v[3]
@@ -78,12 +78,17 @@ function Factory.CreateSlideMesh(slice_start, slice_max, count_ptr, x, y, z, w, 
         0,2,1, 0,3,2, 4,5,6, 4,6,7, 0,1,5, 0,5,4,
         1,2,6, 1,6,5, 2,3,7, 2,7,6, 3,0,4, 3,4,7
     }
-
     for i = 1, #indices, 3 do
-        local tIdx = tStart + floor((i-1)/3)
+        local tIdx = tStart + math.floor((i-1)/3)
         Tri_V1[tIdx], Tri_V2[tIdx], Tri_V3[tIdx] = indices[i] + vStart, indices[i+1] + vStart, indices[i+2] + vStart
         Tri_Color[tIdx] = color
     end
+
+    -- THE UPGRADE: Register the mathematical box for camera pathing!
+    Box_X[id], Box_Y[id], Box_Z[id] = x, y, z
+    Box_HW[id], Box_HH[id], Box_HT[id] = hw, hh, ht
+    Box_NX[id], Box_NY[id], Box_NZ[id] = 0, 0, -1 -- Slides face the camera natively
+    
     return id
 end
 
