@@ -88,23 +88,19 @@ end
 
 local function BindRenderSequence()
     Seq_Render:Slot(1, "KERNELS.camera_cull_smart",
-        Visible_IDs, Count_Visible,
-        Obj_X, Obj_Y, Obj_Z, Obj_Radius,
-        MainCamera
+        Visible_IDs, Count_Visible, Obj_X, Obj_Y, Obj_Z, Obj_Radius, MainCamera
     )
     Seq_Render:Slot(2, "KERNELS.render_rasterize",
-        Visible_IDs, Count_Visible,
-        Obj_X, Obj_Y, Obj_Z,
+        Visible_IDs, Count_Visible, Obj_X, Obj_Y, Obj_Z,
         Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ,
         Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount,
         Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid,
-        Tri_V1, Tri_V2, Tri_V3, Tri_Color,
-        MainCamera, ScreenPtr, ZBuffer
+        Tri_V1, Tri_V2, Tri_V3, Tri_Color, MainCamera, ScreenPtr, ZBuffer
     )
-    -- NEW STAMPER BINDING!
+    -- NEW: We pass Box vectors so the Kernel can calculate Angle fade!
     Seq_Render:Slot(3, "KERNELS.render_text_stamp",
         SlideTitles, ActiveSlide, EngineState,
-        Obj_X, Obj_Y, Obj_Z,
+        Box_X, Box_Y, Box_Z, Box_NX, Box_NY, Box_NZ,
         MainCamera, ScreenPtr, ZBuffer
     )
 end
@@ -139,7 +135,7 @@ function love.load()
         content = {
             "Welcome back to the absolute pinnacle of DOD engine design.",
             "",
-            "~ \27[36m1:1 Pixel Mapping\27[0m | \27[33mZen Mode Hibernation\27[0m",
+            "~ \27[36mDynamic Scale Mapping\27[0m | \27[33mZen Mode Hibernation\27[0m",
             "",
             "# This text runs at true zero allocations per frame."
         }
@@ -207,9 +203,9 @@ function love.update(dt)
         end
     end
 
-    -- ALPHA FADING MACHINE
+    -- PERFECT MATCH TO OLD SysText.Update(EngineState, dt)
     local targetAlpha = (EngineState[0] >= STATE_PRESENT) and 1.0 or 0.0
-    local alphaSpeed = (EngineState[0] == STATE_CINEMATIC) and 5.0 or 3.0
+    local alphaSpeed = (EngineState[0] == STATE_CINEMATIC) and 50.0 or 3.3
 
     if MasterTextAlpha < targetAlpha then
         MasterTextAlpha = math.min(targetAlpha, MasterTextAlpha + dt * alphaSpeed)
@@ -217,14 +213,11 @@ function love.update(dt)
         MasterTextAlpha = math.max(targetAlpha, MasterTextAlpha - dt * alphaSpeed)
     end
 
-    -- SLIDE SWITCH SYNC
-    if MasterTextAlpha <= 0.01 then
-        ActiveSlide[0] = TargetSlide[0]
-    end
+    if MasterTextAlpha <= 0.01 then ActiveSlide[0] = TargetSlide[0] end
 
-    -- HIBERNATION ENGINE
     local isTextReady = (MasterTextAlpha == targetAlpha)
 
+    -- THE HIBERNATION ENGINE
     if EngineState[0] == STATE_HIBERNATED then
         if snapshotBaked then love.timer.sleep(0.25) end
     else
@@ -250,7 +243,7 @@ function love.draw()
         return
     end
 
-    -- ONLY RASTERIZE IF NOT HIBERNATING
+    -- ONLY RASTERIZE IF WE ARE NOT HIBERNATING
     if not snapshotBaked then
         Count_Visible[0] = 0
 
@@ -269,7 +262,8 @@ function love.draw()
 
         BENCH.Run("Text_Stamp", function()
             local TextKernel = Seq_Render.Kernels[3]
-            if TextKernel then TextKernel(CANVAS_W, CANVAS_H, MasterTextAlpha) end
+            -- Pass HALF_W, HALF_H for correct dynamic centering!
+            if TextKernel then TextKernel(CANVAS_W, CANVAS_H, HALF_W, HALF_H, MasterTextAlpha) end
         end)
 
         ScreenImage:replacePixels(ScreenBuffer)
@@ -307,7 +301,7 @@ function love.draw()
     y_offset = y_offset + line_height
     love.graphics.print("Visible IDs   : " .. Count_Visible[0], x_offset, y_offset)
 
-    -- Flag the hibernation lock
+    -- IF WE RENDERED A ZEN FRAME, LOCK THE CPU HIBERNATION
     if EngineState[0] == STATE_ZEN or EngineState[0] == STATE_HIBERNATED then
         snapshotBaked = true
     end
@@ -363,4 +357,3 @@ function love.resize(w, h)
     pendingResize = true
     resizeTimer = 0.2
 end
-

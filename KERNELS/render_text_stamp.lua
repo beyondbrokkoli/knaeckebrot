@@ -1,79 +1,98 @@
 -- ========================================================================
 -- KERNELS/render_text_stamp.lua
--- Stamps the Active Slide's text. Evaluates angular fade and dual caches.
+-- Dynamic 3D UI Projection with Inverse Software Scaling
 -- ========================================================================
 local bit = require("bit")
-local floor = math.floor
+local floor, max, min, abs, sqrt = math.floor, math.max, math.min, math.abs, math.sqrt
 
-return function(SlideCaches, ActiveSlide, EngineState, Obj_X, Obj_Y, Obj_Z, MainCamera, ScreenPtr, ZBuffer)
-    return function(CANVAS_W, CANVAS_H, MasterAlpha)
+return function(SlideCaches, ActiveSlide, EngineState, Box_X, Box_Y, Box_Z, Box_NX, Box_NY, Box_NZ, MainCamera, ScreenPtr, ZBuffer)
+
+    return function(CANVAS_W, CANVAS_H, HALF_W, HALF_H, MasterAlpha)
         if MasterAlpha <= 0 then return end
         
         local slide_idx = ActiveSlide[0]
+        local isZen = (EngineState[0] == 3 or EngineState[0] == 4) 
+        
         local caches = SlideCaches[slide_idx]
         if not caches then return end
+        
+        local cache = caches[isZen]
+        if not cache then return end
 
-        -- Pick the right cache based on Zen mode
-        local isZen = (EngineState[0] == 3 or EngineState[0] == 4) 
-        local TextCache = caches[isZen]
-        if not TextCache then return end
-
+        local sx, sy, sz = Box_X[slide_idx], Box_Y[slide_idx], Box_Z[slide_idx]
+        local bnx, bny, bnz = Box_NX[slide_idx], Box_NY[slide_idx], Box_NZ[slide_idx]
+        
         local cpx, cpy, cpz = MainCamera.x, MainCamera.y, MainCamera.z
         local cfw_x, cfw_y, cfw_z = MainCamera.fwx, MainCamera.fwy, MainCamera.fwz
+        local crt_x, crt_z = MainCamera.rtx, MainCamera.rtz
+        local cup_x, cup_y, cup_z = MainCamera.upx, MainCamera.upy, MainCamera.upz
         
-        local dx, dy, dz = Obj_X[slide_idx] - cpx, Obj_Y[slide_idx] - cpy, Obj_Z[slide_idx] - cpz
+        -- 1. Angular Fade (Fade out if looking away)
+        local camDX, camDY, camDZ = cpx - sx, cpy - sy, cpz - sz
+        local dist = sqrt(camDX*camDX + camDY*camDY + camDZ*camDZ)
+        local dot = (dist > 0) and ((camDX/dist)*bnx + (camDY/dist)*bny + (camDZ/dist)*bnz) or 0
+        local abs_dot = abs(dot)
         
-        -- Angular Fade: Look away, text fades!
-        local dist = math.sqrt(dx*dx + dy*dy + dz*dz)
-        local dot = (dist > 0) and ((dx/dist)*cfw_x + (dy/dist)*cfw_y + (dz/dist)*cfw_z) or 0
-        if dot < 0.707 then return end
+        if abs_dot < 0.707 then return end
         
-        local alpha_angle = math.min(1, (dot - 0.707) * 5)
-        local final_alpha = MasterAlpha * alpha_angle
+        -- 2. 3D Depth Calculation
+        local t_off = (dot > 0 and 1 or -1) * cache.text_z_offset
+        local tdx = (sx + bnx * t_off) - cpx
+        local tdy = (sy + bny * t_off) - cpy
+        local tdz = (sz + bnz * t_off) - cpz
+        
+        local depth = tdx*cfw_x + tdy*cfw_y + tdz*cfw_z
+        if depth < 10 or depth > 15000 then return end
+        
+        -- 3. Dynamic Alpha Generation
+        local alpha_close = max(0, min(1, (depth-100)/300))
+        local alpha_angle = min(1, (abs_dot-0.707)*5)
+        local alpha_far = max(0, min(1, (15000-depth)/2000))
+        local final_alpha = alpha_close * alpha_angle * alpha_far * MasterAlpha
+        
         if final_alpha <= 0.01 then return end
         
-        local alpha_mult = floor(final_alpha * 256)
-        local slide_cz = dx*cfw_x + dy*cfw_y + dz*cfw_z
-        local text_z = slide_cz - TextCache.text_z_offset
+        -- 4. Dynamic Scale & Perspective
+        local current_perspective = (MainCamera.fov / depth)
+        local draw_scale = current_perspective / cache.opt_scale
         
-        if text_z > 0.1 then
-            local text_w, text_h = TextCache.w, TextCache.h
-            local t_ptr = TextCache.ptr
-            local start_x = floor((CANVAS_W - text_w) / 2)
-            local start_y = floor((CANVAS_H - TextCache.orig_h) / 2) + floor(TextCache.orig_h * 0.05)
-            
-            for y = 0, text_h - 1 do
-                local screen_y = start_y + y
-                if screen_y >= 0 and screen_y < CANVAS_H then
-                    local dest_row_offset = screen_y * CANVAS_W
-                    local src_row_offset = y * text_w
-                    for x = 0, text_w - 1 do
-                        local screen_x = start_x + x
-                        if screen_x >= 0 and screen_x < CANVAS_W then
-                            local screen_idx = dest_row_offset + screen_x
-                            if text_z < ZBuffer[screen_idx] then
-                                local src_color = t_ptr[src_row_offset + x]
-                                local a = bit.band(bit.rshift(src_color, 24), 0xFF)
-                                if a > 0 then
-                                    if final_alpha < 1.0 then a = bit.rshift(a * alpha_mult, 8) end
-                                    if a >= 255 then
-                                        ScreenPtr[screen_idx] = src_color
-                                        ZBuffer[screen_idx] = text_z
-                                    elseif a > 10 then
-                                        local bg = ScreenPtr[screen_idx]
-                                        local inv_a = 255 - a
-                                        local br = bit.band(bg, 0xFF)
-                                        local bg_g = bit.band(bit.rshift(bg, 8), 0xFF)
-                                        local bb = bit.band(bit.rshift(bg, 16), 0xFF)
-                                        local tr = bit.band(src_color, 0xFF)
-                                        local tg = bit.band(bit.rshift(src_color, 8), 0xFF)
-                                        local tb = bit.band(bit.rshift(src_color, 16), 0xFF)
-                                        local out_r = bit.rshift((tr * a) + (br * inv_a), 8)
-                                        local out_g = bit.rshift((tg * a) + (bg_g * inv_a), 8)
-                                        local out_b = bit.rshift((tb * a) + (bb * inv_a), 8)
-                                        ScreenPtr[screen_idx] = bit.bor(0xFF000000, bit.lshift(out_b, 16), bit.lshift(out_g, 8), out_r)
-                                        if a > 128 then ZBuffer[screen_idx] = text_z end
-                                    end
+        local cx = HALF_W + (tdx*crt_x + tdz*crt_z) * current_perspective
+        local cy = HALF_H + (tdx*cup_x + tdy*cup_y + tdz*cup_z) * current_perspective
+        
+        cy = cy - ((cache.orig_h - cache.h) * 0.5) * draw_scale
+
+        -- 5. The BlitUI_3D Interpolator Loop
+        local ptr, tw, th = cache.ptr, cache.w, cache.h
+        local sw, sh = floor(tw * draw_scale), floor(th * draw_scale)
+        if sw <= 0 or sh <= 0 then return end
+        
+        local startX, startY = floor(cx - sw * 0.5), floor(cy - sh * 0.5)
+        local clipX, clipY = max(0, startX), max(0, startY)
+        local endX, endY = min(CANVAS_W - 1, startX + sw - 1), min(CANVAS_H - 1, startY + sh - 1)
+        
+        local inv_scale = 1.0 / draw_scale
+        local z_threshold = depth - 5
+        local global_a256 = floor(final_alpha * 255)
+        
+        for y = clipY, endY do
+            local ty = floor((y - startY) * inv_scale)
+            if ty >= 0 and ty < th then
+                local screenOff = y * CANVAS_W
+                local buffOff = ty * tw
+                for x = clipX, endX do
+                    local tx = floor((x - startX) * inv_scale)
+                    if tx >= 0 and tx < tw then
+                        local px = ptr[buffOff + tx]
+                        if px >= 0x01000000 then -- Fast alpha check
+                            if ZBuffer[screenOff + x] >= z_threshold then
+                                local pa = bit.rshift(px, 24)
+                                local final_a = bit.rshift(pa * global_a256, 8)
+                                if final_a > 0 then
+                                    local bg = ScreenPtr[screenOff + x]
+                                    local bg_r, bg_g, bg_b = bit.band(bit.rshift(bg, 16), 0xFF), bit.band(bit.rshift(bg, 8), 0xFF), bit.band(bg, 0xFF)
+                                    local inv_a = 255 - final_a
+                                    local r, g, b = bit.rshift(bg_r*inv_a, 8), bit.rshift(bg_g*inv_a, 8), bit.rshift(bg_b*inv_a, 8)
+                                    ScreenPtr[screenOff + x] = bit.bor(0xFF000000, bit.lshift(r, 16), bit.lshift(g, 8), b)
                                 end
                             end
                         end
@@ -83,4 +102,3 @@ return function(SlideCaches, ActiveSlide, EngineState, Obj_X, Obj_Y, Obj_Z, Main
         end
     end
 end
-
