@@ -1,7 +1,9 @@
+-- ========================================================================
 -- core/bench.lua
+-- Pure, leak-free aggregate benchmarking.
+-- ========================================================================
 BENCH = {
-    registry = {},
---    frame_logs = {}
+    registry = {}
 }
 
 function BENCH.Run(label, func)
@@ -9,25 +11,16 @@ function BENCH.Run(label, func)
     func()
     local duration = love.timer.getTime() - start
 
-    -- Initialize stats for new labels
     if not BENCH.registry[label] then
-        BENCH.registry[label] = {
-            count = 0,
-            total = 0,
-            min = math.huge,
-            max = 0
-        }
+        BENCH.registry[label] = { count = 0, total = 0, min = math.huge, max = 0 }
     end
 
     local stats = BENCH.registry[label]
     stats.count = stats.count + 1
     stats.total = stats.total + duration
-    stats.min = math.min(stats.min, duration)
-    stats.max = math.max(stats.max, duration)
 
-    -- Real-time logging for the current frame
-    -- Real time memory leak because frame_logs is never cleared
-    -- table.insert(BENCH.frame_logs, string.format("[%s]: %.6fs", label, duration))
+    if duration < stats.min then stats.min = duration end
+    if duration > stats.max then stats.max = duration end
 end
 
 function BENCH.GetStats(label)

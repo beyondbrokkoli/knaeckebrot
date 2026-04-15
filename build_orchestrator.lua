@@ -69,7 +69,7 @@ local process_manifest = {
     ["KERNELS/render_rasterize.lua"] = "BUILD/KERNELS/render_rasterize.lua",
     ["KERNELS/phys_kinematics.lua"] = "BUILD/KERNELS/phys_kinematics.lua",
     ["main.lua"] = "BUILD/main.lua",
-    ["conf.lua"] = "BUILD/conf.lua",
+--    ["conf.lua"] = "BUILD/conf.lua",
     ["core/bench.lua"] = "BUILD/core/bench.lua",
 }
 local raw_manifest = {} -- now empty because we broke free from json chains
