@@ -31,7 +31,7 @@ return function(textPayload, SlideCaches_Ptr, fov, canvas_w, canvas_h)
             local contentASTs = {}
             if rawLines then
                 for _, line in ipairs(rawLines) do
-                    if line ~= "" then table.insert(contentASTs, Lexer(line, fonts)) end
+                    table.insert(contentASTs, Lexer(line, fonts))
                 end
             end
 

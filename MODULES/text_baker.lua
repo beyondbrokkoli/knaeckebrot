@@ -18,21 +18,27 @@ return function(titleText, contentASTs, fonts, virtW, virtH)
 
     if contentASTs then
         for _, columns in ipairs(contentASTs) do
-            local numCols = #columns
-            local colWidth = floor(maxTextWidth / numCols)
-            local maxRowHeight = 0
-            for colIdx, colData in ipairs(columns) do
-                love.graphics.setFont(colData.font)
-                local xOffset = paddingX + ((colIdx - 1) * colWidth)
-                local colPrintWidth = colWidth - (numCols > 1 and floor(virtW * 0.02) or 0) + 4
+            -- THE FIX: Check if this is a blank paragraph break line
+            if #columns == 1 and columns[1].pureText == "" then
+                currentY = currentY + fonts.body:getHeight()
+            else
+                local numCols = #columns
+                local colWidth = floor(maxTextWidth / numCols)
+                local maxRowHeight = 0
                 
-                local _, wrappedLines = colData.font:getWrap(colData.pureText, colPrintWidth)
-                local colHeight = #wrappedLines * colData.font:getHeight()
-                if colHeight > maxRowHeight then maxRowHeight = colHeight end
-                
-                love.graphics.printf(colData.coloredTable, floor(xOffset - 2), floor(currentY), colPrintWidth, colData.align)
+                for colIdx, colData in ipairs(columns) do
+                    love.graphics.setFont(colData.font)
+                    local xOffset = paddingX + ((colIdx - 1) * colWidth)
+                    local colPrintWidth = colWidth - (numCols > 1 and floor(virtW * 0.02) or 0) + 4
+                    
+                    local _, wrappedLines = colData.font:getWrap(colData.pureText, colPrintWidth)
+                    local colHeight = #wrappedLines * colData.font:getHeight()
+                    if colHeight > maxRowHeight then maxRowHeight = colHeight end
+                    
+                    love.graphics.printf(colData.coloredTable, floor(xOffset - 2), floor(currentY), colPrintWidth, colData.align)
+                end
+                currentY = currentY + maxRowHeight + floor(virtH * 0.005)
             end
-            currentY = currentY + maxRowHeight + floor(virtH * 0.005)
         end
     end
 
