@@ -101,28 +101,22 @@ return function(Visible_IDs, Count_Visible, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RT
                         local raw_dot = max(0, (nx/len)*(lx/l_len) + (ny/len)*(ly/l_len) + (nz/len)*(lz/l_len))
                         local final_light = max(0.05, min(0.8, (raw_dot ^ 1.5) * 1.3))
 
-                        -- === THE SPOOKY DEPTH SHADOWING ===
-                        -- 1. Calculate the average distance of this triangle from the camera lens
+                        -- The Spooky Depth Shadowing...
                         local tri_depth = (pz1 + pz2 + pz3) * 0.3333
-
-                        -- 2. Define the Abyssal Zone parameters (Tweak these!)
-                        local shadow_start = 12000  -- Distance where the darkness begins creeping in
-                        local shadow_end = 24000    -- Distance where the object becomes pure black
-
-                        -- 3. Create a linear falloff multiplier (1.0 = normal light, 0.0 = consumed by void)
+                        local shadow_start = 10000
+                        local shadow_end = 16000
                         local depth_attenuation = 1.0 - max(0, min(1, (tri_depth - shadow_start) / (shadow_end - shadow_start)))
-
-                        -- 4. Apply the darkness
                         final_light = final_light * depth_attenuation
-                        -- ===================================
 
-                        local tc = Tri_Color[idx]
-                        local a = bit.band(bit.rshift(tc, 24), 0xFF)
-                        local b = min(255, bit.band(bit.rshift(tc, 16), 0xFF) * final_light)
-                        local g = min(255, bit.band(bit.rshift(tc, 8), 0xFF) * final_light)
-                        local r = min(255, bit.band(tc, 0xFF) * final_light)
+                        -- THE DOD GLORY: Look how fast this is now!
+                        -- No bitwise unpacking. Just pure float array lookups.
+                        local r = min(255, Tri_R[idx] * final_light)
+                        local g = min(255, Tri_G[idx] * final_light)
+                        local b = min(255, Tri_B[idx] * final_light)
 
-                        RasterizeTriangle(px1,py1,pz1, px2,py2,pz2, px3,py3,pz3, bit.bor(bit.lshift(a, 24), bit.lshift(b, 16), bit.lshift(g, 8), r), CANVAS_W, CANVAS_H)
+                        -- Repack once for the screen buffer (Hardcoding Alpha to FF)
+                        local shadedColor = bit.bor(0xFF000000, bit.lshift(b, 16), bit.lshift(g, 8), r)
+                        RasterizeTriangle(px1,py1,pz1, px2,py2,pz2, px3,py3,pz3, shadedColor, CANVAS_W, CANVAS_H)
                     end
                 end
             end

@@ -107,7 +107,7 @@ local function BindRenderSequence()
         Tri_BaseLight, MainCamera, ScreenPtr, ZBuffer
     )
     -- 4. Rasterize Kinematics (Dynamic Lighting)
-    Seq_Render:Slot(4, "KERNELS.render_rasterize_dynamic",
+    Seq_Render:Slot(4, "KERNELS.render_rasterize_dynamic_fog",
         Visible_Kinematic_IDs, Count_Visible_Kinematic, Obj_X, Obj_Y, Obj_Z,
         Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ,
         Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount,
