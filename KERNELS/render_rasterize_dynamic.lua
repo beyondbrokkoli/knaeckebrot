@@ -85,20 +85,20 @@ return function(Visible_IDs, Count_Visible, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RT
                     if (px2-px1)*(py3-py1) - (py2-py1)*(px3-px1) < 0 then
 
                         -- PURE DYNAMIC LIGHTING (Cross products, no branching)
-                        local wx1, wy1, wz1 = Vert_CX[i1], Vert_CY[i1], Vert_CZ[i1];
-                        local wx2, wy2, wz2 = Vert_CX[i2], Vert_CY[i2], Vert_CZ[i2];
-                        local wx3, wy3, wz3 = Vert_CX[i3], Vert_CY[i3], Vert_CZ[i3];
+                        local wx1, wy1, wz1 = Vert_CX[i1], Vert_CY[i1], Vert_CZ[i1]
+                        local wx2, wy2, wz2 = Vert_CX[i2], Vert_CY[i2], Vert_CZ[i2]
+                        local wx3, wy3, wz3 = Vert_CX[i3], Vert_CY[i3], Vert_CZ[i3]
 
-                        local nx = (wy1-wy2)*(wz1-wz3) - (wz1-wz2)*(wy1-wy3);
-                        local ny = (wz1-wz2)*(wx1-wx3) - (wx1-wx2)*(wz1-wz3);
-                        local nz = (wx1-wx2)*(wy1-wy3) - (wy1-wy2)*(wx1-wx3);
+                        local nx = (wy1-wy2)*(wz1-wz3) - (wz1-wz2)*(wy1-wy3)
+                        local ny = (wz1-wz2)*(wx1-wx3) - (wx1-wx2)*(wz1-wz3)
+                        local nz = (wx1-wx2)*(wy1-wy3) - (wy1-wy2)*(wx1-wx3)
 
-                        local len = sqrt(nx*nx + ny*ny + nz*nz); if len == 0 then len = 1 end;
-                        local lx, ly, lz = 2000 - wx1, -2000 - wy1, -2000 - wz1;
-                        local l_len = sqrt(lx*lx + ly*ly + lz*lz); if l_len == 0 then l_len = 1 end;
+                        local len = sqrt(nx*nx + ny*ny + nz*nz); if len == 0 then len = 1 end
+                        local lx, ly, lz = 2000 - wx1, -2000 - wy1, -2000 - wz1
+                        local l_len = sqrt(lx*lx + ly*ly + lz*lz); if l_len == 0 then l_len = 1 end
 
-                        local raw_dot = max(0, (nx/len)*(lx/l_len) + (ny/len)*(ly/l_len) + (nz/len)*(lz/l_len));
-                        local final_light = max(0.25, min(1.0, (raw_dot ^ 1.5) * 1.3));
+                        local raw_dot = max(0, (nx/len)*(lx/l_len) + (ny/len)*(ly/l_len) + (nz/len)*(lz/l_len))
+                        local final_light = max(0.05, min(0.8, (raw_dot ^ 1.5) * 1.3))
 
                         local tc = Tri_Color[idx]
                         local a = bit.band(bit.rshift(tc, 24), 0xFF)
