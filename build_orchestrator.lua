@@ -68,7 +68,7 @@ local process_manifest = {
     ["KERNELS/camera_cull_smart.lua"] = "BUILD/KERNELS/camera_cull_smart.lua",
     ["KERNELS/render_rasterize_baked.lua"] = "BUILD/KERNELS/render_rasterize_baked.lua",
     ["KERNELS/render_rasterize_dynamic.lua"] = "BUILD/KERNELS/render_rasterize_dynamic.lua",
-    ["KERNELS/render_rasterize_dynamic_fog.lua"] = "BUILD/KERNELS/render_rasterize_dynamic_fog.lua",
+--    ["KERNELS/render_rasterize_dynamic_fog.lua"] = "BUILD/KERNELS/render_rasterize_dynamic_fog.lua",
     ["KERNELS/phys_kinematics.lua"] = "BUILD/KERNELS/phys_kinematics.lua",
     ["KERNELS/render_text_stamp.lua"] = "BUILD/KERNELS/render_text_stamp.lua",
     ["ROUTINES/init_buffers.lua"] = "BUILD/ROUTINES/init_buffers.lua",
@@ -80,7 +80,7 @@ local process_manifest = {
     ["MODULES/text_math.lua"] = "BUILD/MODULES/text_math.lua",
     ["MODULES/text_baker.lua"] = "BUILD/MODULES/text_baker.lua",
     ["main.lua"] = "BUILD/main.lua",
-    ["conf.lua"] = "BUILD/conf.lua",
+--    ["conf.lua"] = "BUILD/conf.lua",
     ["core/bench.lua"] = "BUILD/core/bench.lua",
 }
 local raw_manifest = {} -- now empty because we broke free from json chains

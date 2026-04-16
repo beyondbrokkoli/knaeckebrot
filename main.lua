@@ -298,6 +298,18 @@ function love.draw()
     love.graphics.draw(ScreenImage, 0, 0)
     love.graphics.setBlendMode("alpha")
 
+    love.graphics.setColor(0, 1, 0, 1)
+    if Font_UI then love.graphics.setFont(Font_UI) end
+    
+    love.graphics.print("FPS: " .. love.timer.getFPS(), 20, 20)
+    love.graphics.print("SLIDE: " .. (TargetSlide[0] + 1) .. " / " .. NumSlides[0], 20, 40)
+    
+    local stateNames = {"FREEFLY", "CINEMATIC", "PRESENT", "ZEN", "HIBERNATED"}
+    love.graphics.print("STATE: " .. stateNames[EngineState[0] + 1], 20, 60)
+    love.graphics.print("SOLIDS: " .. Count_Solid[0] .. " | KINEMATICS: " .. Count_Kinematic[0], 20, 80)
+    
+    love.graphics.setColor(1, 1, 1, 1)
+
     if EngineState[0] == STATE_ZEN or EngineState[0] == STATE_HIBERNATED then
         snapshotBaked = true
     end
