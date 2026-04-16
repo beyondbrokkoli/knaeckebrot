@@ -107,7 +107,7 @@ end
 
 function love.load()
     ReinitBuffers()
-    Font_UI = love.graphics.newFont(14)
+    Font_UI = love.graphics.newFont(12)
 
     MainCamera.x, MainCamera.y, MainCamera.z = 0, 0, -400
     MainCamera.yaw, MainCamera.pitch = 0, 0
