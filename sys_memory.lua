@@ -88,6 +88,12 @@ Vert_Valid = ffi.new("bool[?]", MAX_TOTAL_VERTS)
 
 Tri_V1 = ffi.new("int[?]", MAX_TOTAL_TRIS); Tri_V2 = ffi.new("int[?]", MAX_TOTAL_TRIS); Tri_V3 = ffi.new("int[?]", MAX_TOTAL_TRIS)
 Tri_Color = ffi.new("uint32_t[?]", MAX_TOTAL_TRIS)
+
+-- ADD THESE: Pre-extracted Float Colors!
+Tri_R = ffi.new("float[?]", MAX_TOTAL_TRIS)
+Tri_G = ffi.new("float[?]", MAX_TOTAL_TRIS)
+Tri_B = ffi.new("float[?]", MAX_TOTAL_TRIS)
+
 Tri_BaseLight = ffi.new("float[?]", MAX_TOTAL_TRIS)
 
 -- ==========================================

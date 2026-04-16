@@ -8,7 +8,9 @@ require("sys_state")
 local ffi = require("ffi")
 local CreateSequence = require("sys_sequence")
 local Factory = require("sys_factory")
-
+local Routine_InitText = require("ROUTINES.init_slide_text")
+local Routine_BakeLighting = require("ROUTINES.bake_lighting")
+local Routine_BakeColors = require("ROUTINES.bake_colors")
 local Seq_Physics = CreateSequence()
 local Seq_Render = CreateSequence()
 
@@ -101,7 +103,8 @@ local function BindRenderSequence()
         Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ,
         Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount,
         Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid,
-        Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BaseLight, MainCamera, ScreenPtr, ZBuffer
+        Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_R, Tri_G, Tri_B,
+        Tri_BaseLight, MainCamera, ScreenPtr, ZBuffer
     )
     -- 4. Rasterize Kinematics (Dynamic Lighting)
     Seq_Render:Slot(4, "KERNELS.render_rasterize_dynamic",
@@ -109,7 +112,8 @@ local function BindRenderSequence()
         Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ,
         Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount,
         Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid,
-        Tri_V1, Tri_V2, Tri_V3, Tri_Color, MainCamera, ScreenPtr, ZBuffer
+        Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_R, Tri_G, Tri_B,
+        MainCamera, ScreenPtr, ZBuffer
     )
     -- 5. Text Stamp
     Seq_Render:Slot(5, "KERNELS.render_text_stamp",
@@ -165,10 +169,10 @@ function love.load()
     if Count_Solid[0] > 0 then
         Routine_BakeLighting(SLICE_SOLID_START, Count_Solid[0])
     end
-    -- if Count_Kinematic[0] > 0 then
-        -- Routine_BakeLighting(SLICE_KINEMATIC_START, Count_Kinematic[0])
-    -- end
-
+    -- Extract all hex colors into fast flat floats!
+    if NumTotalTris[0] > 0 then
+        Routine_BakeColors(NumTotalTris[0])
+    end
     EngineState[0] = STATE_FREEFLY
 end
 
