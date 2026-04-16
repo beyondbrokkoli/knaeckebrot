@@ -65,8 +65,6 @@ return function(
             end
         end
     end
-
-    -- 3. The Compute Kernel
     return function(CANVAS_W, CANVAS_H, HALF_W, HALF_H)
         local total_pixels = CANVAS_W * CANVAS_H
         ffi.fill(ScreenPtr, total_pixels * 4, 0)
@@ -79,13 +77,8 @@ return function(
         local cup_x, cup_y, cup_z = MainCamera.upx, MainCamera.upy, MainCamera.upz
         local cam_fov = MainCamera.fov
 
-        -- Hardcoded Directional Light Vector (Coming from top-left, pointing down into the screen)
-        local lx, ly, lz = 0.577, -0.577, 0.577
-
         for v = 0, visible_total - 1 do
             local id = Visible_IDs[v]
-
-            -- Phase A: Vertex Transform
             local vStart, vCount = Obj_VertStart[id], Obj_VertCount[id]
             local ox, oy, oz = Obj_X[id], Obj_Y[id], Obj_Z[id]
             local rx, rz = Obj_RTX[id], Obj_RTZ[id]
@@ -95,16 +88,11 @@ return function(
             for i = 0, vCount - 1 do
                 local idx = vStart + i
                 local lvx, lvy, lvz = Vert_LX[idx], Vert_LY[idx], Vert_LZ[idx]
-
-                -- Local to World
                 local wx = ox + lvx*rx + lvy*ux + lvz*fx
                 local wy = oy + lvy*uy + lvz*fy
                 local wz = oz + lvx*rz + lvy*uz + lvz*fz
-
-                -- SAVE the world coords for lighting!
                 Vert_CX[idx], Vert_CY[idx], Vert_CZ[idx] = wx, wy, wz
 
-                -- World to Camera
                 local vdx, vdy, vdz = wx-cpx, wy-cpy, wz-cpz
                 local cz = vdx*cfw_x + vdy*cfw_y + vdz*cfw_z
 
@@ -119,9 +107,7 @@ return function(
                 end
             end
 
-            -- Phase B: Triangle Rasterization & Shading
             local tStart, tCount = Obj_TriStart[id], Obj_TriCount[id]
-
             for i = 0, tCount - 1 do
                 local idx = tStart + i
                 local i1, i2, i3 = Tri_V1[idx], Tri_V2[idx], Tri_V3[idx]
@@ -130,17 +116,36 @@ return function(
                     local px1, py1, pz1 = Vert_PX[i1], Vert_PY[i1], Vert_PZ[i1]
                     local px2, py2, pz2 = Vert_PX[i2], Vert_PY[i2], Vert_PZ[i2]
                     local px3, py3, pz3 = Vert_PX[i3], Vert_PY[i3], Vert_PZ[i3]
-
-                    -- Backface Culling
                     local winding = (px2-px1)*(py3-py1) - (py2-py1)*(px3-px1)
+
                     if winding < 0 then
-                        -- We removed all the wx, wy, wz normal calculations!
+                        local final_light
 
-                        -- Grab the pre-baked stable lighting
-                        local base_light = Tri_BaseLight[idx]
+                        -- PARTITION LOGIC: ID <= 199 means it is a SLIDE
+                        if id <= 199 then
+                            final_light = Tri_BaseLight[idx] * 0.85 + 0.15
+                        else
+                            -- KINEMATIC PROP: Real-time Goated Math
+                            local wx1, wy1, wz1 = Vert_CX[i1], Vert_CY[i1], Vert_CZ[i1]
+                            local wx2, wy2, wz2 = Vert_CX[i2], Vert_CY[i2], Vert_CZ[i2]
+                            local wx3, wy3, wz3 = Vert_CX[i3], Vert_CY[i3], Vert_CZ[i3]
 
-                        -- Apply your stable engine's multiplier logic (0.85 base + 0.15 ambient boost)
-                        local final_light = base_light * 0.85 + 0.15
+                            local nx = (wy1-wy2)*(wz1-wz3) - (wz1-wz2)*(wy1-wy3)
+                            local ny = (wz1-wz2)*(wx1-wx3) - (wx1-wx2)*(wz1-wz3)
+                            local nz = (wx1-wx2)*(wy1-wy3) - (wy1-wy2)*(wx1-wx3)
+
+                            local len = sqrt(nx*nx + ny*ny + nz*nz)
+                            if len == 0 then len = 1 end
+
+                            local lx, ly, lz = 0 - wx1, -2000 - wy1, 0 - wz1
+                            local l_len = sqrt(lx*lx + ly*ly + lz*lz)
+                            if l_len == 0 then l_len = 1 end
+
+                            local raw_dot = max(0, (nx/len)*(lx/l_len) + (ny/len)*(ly/l_len) + (nz/len)*(lz/l_len))
+
+                            -- The exponential curve that gives it depth!
+                            final_light = max(0.1, min(1.0, (raw_dot ^ 2) * 1.5))
+                        end
 
                         local tc = Tri_Color[idx]
                         local a = bit.band(bit.rshift(tc, 24), 0xFF)
