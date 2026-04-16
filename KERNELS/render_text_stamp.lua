@@ -7,6 +7,7 @@ return function(SlideCaches, ActiveSlide, EngineState, Box_X, Box_Y, Box_Z, Box_
         
         local slide_idx = ActiveSlide[0]
         local isZen = (EngineState[0] == 3 or EngineState[0] == 4)
+        
         local caches = SlideCaches[slide_idx]
         if not caches then return end
         
@@ -15,19 +16,17 @@ return function(SlideCaches, ActiveSlide, EngineState, Box_X, Box_Y, Box_Z, Box_
         
         local sx, sy, sz = Box_X[slide_idx], Box_Y[slide_idx], Box_Z[slide_idx]
         local bnx, bny, bnz = Box_NX[slide_idx], Box_NY[slide_idx], Box_NZ[slide_idx]
-        local cpx, cpy, cpz = MainCamera.x, MainCamera.y, MainCamera.z
         
+        local cpx, cpy, cpz = MainCamera.x, MainCamera.y, MainCamera.z
         local camDX, camDY, camDZ = cpx - sx, cpy - sy, cpz - sz
+        
         local dist = sqrt(camDX*camDX + camDY*camDY + camDZ*camDZ)
         local dot = (dist > 0) and ((camDX/dist)*bnx + (camDY/dist)*bny + (camDZ/dist)*bnz) or 0
-        
-        -- We want to see text from both sides, so we use absolute dot product
         local abs_dot = abs(dot)
-        if abs_dot < 0.1 then return end -- Only cull if looking perfectly edge-on
         
-        -- RESTORED: The bi-directional text hover!
+        if abs_dot < 0.1 then return end
+        
         local t_off = (dot > 0 and 1 or -1) * cache.text_z_offset
-        
         local tdx = (sx + bnx * t_off) - cpx
         local tdy = (sy + bny * t_off) - cpy
         local tdz = (sz + bnz * t_off) - cpz
@@ -59,34 +58,34 @@ return function(SlideCaches, ActiveSlide, EngineState, Box_X, Box_Y, Box_Z, Box_
             if ty >= 0 and ty < th then
                 local screenOff = y * CANVAS_W
                 local buffOff = ty * tw
+                
                 for x = clipX, endX do
                     local tx = floor((x - startX) * inv_scale)
                     if tx >= 0 and tx < tw then
                         local px = ptr[buffOff + tx]
-                        -- 0x01000000 ensures Alpha > 0.
+                        
+                        -- Only process pixels that have alpha data
                         if px >= 0x01000000 then
                             if ZBuffer[screenOff + x] >= z_threshold then
                                 local pa = bit.rshift(px, 24)
                                 local final_a = bit.rshift(pa * global_a256, 8)
                                 
                                 if final_a > 0 then
-                                    -- Foreground Extraction
-                                    local fg_b = bit.band(bit.rshift(px, 16), 0xFF)
-                                    local fg_g = bit.band(bit.rshift(px, 8), 0xFF)
-                                    local fg_r = bit.band(px, 0xFF)
-                                    
-                                    -- Background Extraction
                                     local bg = ScreenPtr[screenOff + x]
+                                    
+                                    -- Extract existing background color
                                     local bg_b = bit.band(bit.rshift(bg, 16), 0xFF)
                                     local bg_g = bit.band(bit.rshift(bg, 8), 0xFF)
                                     local bg_r = bit.band(bg, 0xFF)
                                     
-                                    -- CORRECT PREMULTIPLIED ALPHA BLENDING
-                                    -- We apply MasterAlpha to FG, but do NOT multiply by FinalAlpha again!
+                                    -- Calculate the inverse alpha mask
                                     local inv_a = 255 - final_a
-                                    local r = bit.rshift(fg_r * global_a256 + bg_r * inv_a, 8)
-                                    local g = bit.rshift(fg_g * global_a256 + bg_g * inv_a, 8)
-                                    local b = bit.rshift(fg_b * global_a256 + bg_b * inv_a, 8)
+                                    
+                                    -- THE GLORY: Multiply background by inverse alpha only.
+                                    -- No foreground color interpolation means zero edge-bleeding.
+                                    local r = bit.rshift(bg_r * inv_a, 8)
+                                    local g = bit.rshift(bg_g * inv_a, 8)
+                                    local b = bit.rshift(bg_b * inv_a, 8)
                                     
                                     ScreenPtr[screenOff + x] = bit.bor(0xFF000000, bit.lshift(b, 16), bit.lshift(g, 8), r)
                                 end
@@ -98,4 +97,3 @@ return function(SlideCaches, ActiveSlide, EngineState, Box_X, Box_Y, Box_Z, Box_
         end
     end
 end
-

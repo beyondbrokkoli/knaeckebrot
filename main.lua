@@ -95,7 +95,7 @@ local function BindRenderSequence()
         Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ,
         Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount,
         Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid,
-        Tri_V1, Tri_V2, Tri_V3, Tri_Color, MainCamera, ScreenPtr, ZBuffer
+        Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BaseLight, MainCamera, ScreenPtr, ZBuffer
     )
     -- NEW: We pass Box vectors so the Kernel can calculate Angle fade!
     Seq_Render:Slot(3, "KERNELS.render_text_stamp",
@@ -123,13 +123,13 @@ function love.load()
 
     BindRenderSequence()
 
+    local C_CREAM = 4294306522; -- The goat color
     Factory.CreateSlideMesh(
         SLICE_SOLID_START, SLICE_SOLID_MAX, Count_Solid,
         0, 0, 800,
         800, 450, 20,
-        0xFF555555
+        C_CREAM
     )
-
     manifest[0] = {
         title = "KFC CRISPNESS RESTORED",
         content = {
@@ -274,32 +274,32 @@ function love.draw()
     love.graphics.draw(ScreenImage, 0, 0)
     love.graphics.setBlendMode("alpha")
 
-    if Font_UI then love.graphics.setFont(Font_UI) end
-    love.graphics.setColor(0, 1, 0.5, 1)
+    -- if Font_UI then love.graphics.setFont(Font_UI) end
+    -- love.graphics.setColor(0, 1, 0.5, 1)
 
-    local y_offset = 10
-    local line_height = 15
-    local x_offset = 10
+    -- local y_offset = 10
+    -- local line_height = 15
+    -- local x_offset = 10
 
-    love.graphics.print("FPS: " .. love.timer.getFPS(), x_offset, y_offset)
-    y_offset = y_offset + line_height * 2
+    -- love.graphics.print("FPS: " .. love.timer.getFPS(), x_offset, y_offset)
+    -- y_offset = y_offset + line_height * 2
 
-    love.graphics.print("--- KERNEL TIMES ---", x_offset, y_offset)
-    y_offset = y_offset + line_height
-    love.graphics.print("Physics | " .. BENCH.GetStats("Physics"), x_offset, y_offset)
-    y_offset = y_offset + line_height
-    love.graphics.print("Cull    | " .. BENCH.GetStats("Camera_Cull"), x_offset, y_offset)
-    y_offset = y_offset + line_height
-    love.graphics.print("Raster  | " .. BENCH.GetStats("Rasterize"), x_offset, y_offset)
-    y_offset = y_offset + line_height
-    love.graphics.print("Text    | " .. BENCH.GetStats("Text_Stamp"), x_offset, y_offset)
-    y_offset = y_offset + line_height * 2
+    -- love.graphics.print("--- KERNEL TIMES ---", x_offset, y_offset)
+    -- y_offset = y_offset + line_height
+    -- love.graphics.print("Physics | " .. BENCH.GetStats("Physics"), x_offset, y_offset)
+    -- y_offset = y_offset + line_height
+    -- love.graphics.print("Cull    | " .. BENCH.GetStats("Camera_Cull"), x_offset, y_offset)
+    -- y_offset = y_offset + line_height
+    -- love.graphics.print("Raster  | " .. BENCH.GetStats("Rasterize"), x_offset, y_offset)
+    -- y_offset = y_offset + line_height
+    -- love.graphics.print("Text    | " .. BENCH.GetStats("Text_Stamp"), x_offset, y_offset)
+    -- y_offset = y_offset + line_height * 2
 
-    love.graphics.print("--- UNIVERSE ---", x_offset, y_offset)
-    y_offset = y_offset + line_height
-    love.graphics.print("Total Objects : " .. NumObjects[0], x_offset, y_offset)
-    y_offset = y_offset + line_height
-    love.graphics.print("Visible IDs   : " .. Count_Visible[0], x_offset, y_offset)
+    -- love.graphics.print("--- UNIVERSE ---", x_offset, y_offset)
+    -- y_offset = y_offset + line_height
+    -- love.graphics.print("Total Objects : " .. NumObjects[0], x_offset, y_offset)
+    -- y_offset = y_offset + line_height
+    -- love.graphics.print("Visible IDs   : " .. Count_Visible[0], x_offset, y_offset)
 
     -- IF WE RENDERED A ZEN FRAME, LOCK THE CPU HIBERNATION
     if EngineState[0] == STATE_ZEN or EngineState[0] == STATE_HIBERNATED then
