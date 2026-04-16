@@ -19,3 +19,4 @@ c_red, c_green, c_yellow, c_cyan, c_reset = ESC.."[31m", ESC.."[32m", ESC.."[33m
 MasterTextAlpha = 0.0
 snapshotBaked = false -- <--- ADD THIS
 Routine_InitText = require("ROUTINES.init_slide_text")
+Routine_BakeLighting = require("ROUTINES.bake_lighting")

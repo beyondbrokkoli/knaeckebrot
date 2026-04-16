@@ -147,6 +147,14 @@ function love.load()
     Factory.CreateMegaknot(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, 0, 0, 8000)
     Factory.CreatePropCube(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, 0, 0, 600, 100, 0xFF0000FF)
 
+    -- THE MISSING EXECUTION: Bake the lighting for all solid and kinematic objects!
+    if Count_Solid[0] > 0 then
+        Routine_BakeLighting(SLICE_SOLID_START, Count_Solid[0])
+    end
+    -- if Count_Kinematic[0] > 0 then
+        -- Routine_BakeLighting(SLICE_KINEMATIC_START, Count_Kinematic[0])
+    -- end
+
     EngineState[0] = STATE_FREEFLY
 end
 

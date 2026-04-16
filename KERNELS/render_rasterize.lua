@@ -134,39 +134,25 @@ return function(
                     -- Backface Culling
                     local winding = (px2-px1)*(py3-py1) - (py2-py1)*(px3-px1)
                     if winding < 0 then
+                        -- We removed all the wx, wy, wz normal calculations!
 
-                        -- 1. Grab World Coords for Normal Calculation
-                        local wx1, wy1, wz1 = Vert_CX[i1], Vert_CY[i1], Vert_CZ[i1]
-                        local wx2, wy2, wz2 = Vert_CX[i2], Vert_CY[i2], Vert_CZ[i2]
-                        local wx3, wy3, wz3 = Vert_CX[i3], Vert_CY[i3], Vert_CZ[i3]
+                        -- Grab the pre-baked stable lighting
+                        local base_light = Tri_BaseLight[idx]
 
-                        -- 2. Cross Product for Triangle Normal
-                        local nx = (wy1-wy2)*(wz1-wz3) - (wz1-wz2)*(wy1-wy3)
-                        local ny = (wz1-wz2)*(wx1-wx3) - (wx1-wx2)*(wz1-wz3)
-                        local nz = (wx1-wx2)*(wy1-wy3) - (wy1-wy2)*(wx1-wx3)
+                        -- Apply your stable engine's multiplier logic (0.85 base + 0.15 ambient boost)
+                        local final_light = base_light * 0.85 + 0.15
 
-                        local len = sqrt(nx*nx + ny*ny + nz*nz)
-                        if len == 0 then len = 1 end
-                        nx, ny, nz = nx/len, ny/len, nz/len
-
-                        -- 3. Lambertian Dot Product Shading
-                        local dot = max(0.1, (nx*lx + ny*ly + nz*lz))
-
-                        -- 4. Apply AABBGGRR Shading
                         local tc = Tri_Color[idx]
                         local a = bit.band(bit.rshift(tc, 24), 0xFF)
                         local b = bit.band(bit.rshift(tc, 16), 0xFF)
                         local g = bit.band(bit.rshift(tc, 8), 0xFF)
                         local r = bit.band(tc, 0xFF)
 
-                        -- Multiply color by our light dot product, boost slightly (*1.2) for visibility
-                        r = min(255, r * dot * 1.2)
-                        g = min(255, g * dot * 1.2)
-                        b = min(255, b * dot * 1.2)
+                        r = min(255, r * final_light)
+                        g = min(255, g * final_light)
+                        b = min(255, b * final_light)
 
-                        -- Re-pack as AABBGGRR
                         local shadedColor = bit.bor(bit.lshift(a, 24), bit.lshift(b, 16), bit.lshift(g, 8), r)
-
                         RasterizeTriangle(px1,py1,pz1, px2,py2,pz2, px3,py3,pz3, shadedColor, CANVAS_W, CANVAS_H)
                     end
                 end
