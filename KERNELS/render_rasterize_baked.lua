@@ -81,8 +81,8 @@ return function(Visible_IDs, Count_Visible, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RT
                     local px2, py2, pz2 = Vert_PX[i2], Vert_PY[i2], Vert_PZ[i2]
                     local px3, py3, pz3 = Vert_PX[i3], Vert_PY[i3], Vert_PZ[i3]
                     if (px2-px1)*(py3-py1) - (py2-py1)*(px3-px1) < 0 then
-                        -- PURE BAKED LIGHTING (No cross products)
-                        local final_light = Tri_BaseLight[idx] * 0.85 + 0.15
+                        -- PURE BAKED LIGHTING RESTORED
+                        local final_light = Tri_BaseLight[idx]
                         local tc = Tri_Color[idx]
                         local a = bit.band(bit.rshift(tc, 24), 0xFF)
                         local b = min(255, bit.band(bit.rshift(tc, 16), 0xFF) * final_light)

@@ -94,29 +94,24 @@ return function(Visible_IDs, Count_Visible, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RT
                         local nz = (wx1-wx2)*(wy1-wy3) - (wy1-wy2)*(wx1-wx3)
 
                         local len = sqrt(nx*nx + ny*ny + nz*nz); if len == 0 then len = 1 end
-                        local lx, ly, lz = 2000 - wx1, -2000 - wy1, -2000 - wz1
-                        local l_len = sqrt(lx*lx + ly*ly + lz*lz); if l_len == 0 then l_len = 1 end
 
-                        -- Your beautifully tweaked lighting curve:
-                        local raw_dot = max(0, (nx/len)*(lx/l_len) + (ny/len)*(ly/l_len) + (nz/len)*(lz/l_len))
-                        local final_light = max(0.05, min(0.8, (raw_dot ^ 1.5) * 1.3))
+                        -- RESTORED LEGACY DYNAMIC LIGHTING
+                        local final_light = max(0.2, min(1.0, (nx*0.5 + ny*1.0 + nz*0.5) / len))
 
-                        -- The Spooky Depth Shadowing...
+                        -- THE FOG / DEPTH ATTENUATION MOD
                         local tri_depth = (pz1 + pz2 + pz3) * 0.3333
                         local shadow_start = 10000
                         local shadow_end = 16000
                         local depth_attenuation = 1.0 - max(0, min(1, (tri_depth - shadow_start) / (shadow_end - shadow_start)))
+
                         final_light = final_light * depth_attenuation
 
-                        -- THE DOD GLORY: Look how fast this is now!
-                        -- No bitwise unpacking. Just pure float array lookups.
-                        local r = min(255, Tri_R[idx] * final_light)
-                        local g = min(255, Tri_G[idx] * final_light)
-                        local b = min(255, Tri_B[idx] * final_light)
-
-                        -- Repack once for the screen buffer (Hardcoding Alpha to FF)
-                        local shadedColor = bit.bor(0xFF000000, bit.lshift(b, 16), bit.lshift(g, 8), r)
-                        RasterizeTriangle(px1,py1,pz1, px2,py2,pz2, px3,py3,pz3, shadedColor, CANVAS_W, CANVAS_H)
+                        local tc = Tri_Color[idx]
+                        local a = bit.band(bit.rshift(tc, 24), 0xFF)
+                        local b = min(255, bit.band(bit.rshift(tc, 16), 0xFF) * final_light)
+                        local g = min(255, bit.band(bit.rshift(tc, 8), 0xFF) * final_light)
+                        local r = min(255, bit.band(tc, 0xFF) * final_light)
+                        RasterizeTriangle(px1,py1,pz1, px2,py2,pz2, px3,py3,pz3, bit.bor(bit.lshift(a, 24), bit.lshift(b, 16), bit.lshift(g, 8), r), CANVAS_W, CANVAS_H)
                     end
                 end
             end

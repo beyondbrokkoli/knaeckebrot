@@ -63,15 +63,15 @@ end
 
 local process_manifest = {
     ["sys_memory.lua"] = "BUILD/sys_memory.lua",
-    ["sys_state.lua"] = "BUILD/sys_state.lua",
-    ["sys_init.lua"] = "BUILD/sys_init.lua",
     ["sys_factory.lua"] = "BUILD/sys_factory.lua",
     ["sys_sequence.lua"] = "BUILD/sys_sequence.lua",
     ["KERNELS/camera_cull_smart.lua"] = "BUILD/KERNELS/camera_cull_smart.lua",
     ["KERNELS/render_rasterize_baked.lua"] = "BUILD/KERNELS/render_rasterize_baked.lua",
     ["KERNELS/render_rasterize_dynamic.lua"] = "BUILD/KERNELS/render_rasterize_dynamic.lua",
+    ["KERNELS/render_rasterize_dynamic_fog.lua"] = "BUILD/KERNELS/render_rasterize_dynamic_fog.lua",
     ["KERNELS/phys_kinematics.lua"] = "BUILD/KERNELS/phys_kinematics.lua",
     ["KERNELS/render_text_stamp.lua"] = "BUILD/KERNELS/render_text_stamp.lua",
+    ["ROUTINES/init_buffers.lua"] = "BUILD/ROUTINES/init_buffers.lua",
     ["ROUTINES/init_slide_text.lua"] = "BUILD/ROUTINES/init_slide_text.lua",
     ["ROUTINES/bake_lighting.lua"] = "BUILD/ROUTINES/bake_lighting.lua",
     ["ROUTINES/bake_colors.lua"] = "BUILD/ROUTINES/bake_colors.lua",

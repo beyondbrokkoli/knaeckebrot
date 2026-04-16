@@ -1,16 +1,14 @@
--- ========================================================================
--- main.lua
--- ========================================================================
 require("sys_memory")
 require("core/bench")
-require("sys_init")
-require("sys_state")
+
 local ffi = require("ffi")
 local CreateSequence = require("sys_sequence")
 local Factory = require("sys_factory")
+local Routine_InitBuffers = require("ROUTINES.init_buffers") -- New
 local Routine_InitText = require("ROUTINES.init_slide_text")
 local Routine_BakeLighting = require("ROUTINES.bake_lighting")
 local Routine_BakeColors = require("ROUTINES.bake_colors")
+
 local Seq_Physics = CreateSequence()
 local Seq_Render = CreateSequence()
 
@@ -124,7 +122,7 @@ local function BindRenderSequence()
 end
 
 function love.load()
-    ReinitBuffers()
+    Routine_InitBuffers()
     Font_UI = love.graphics.newFont(12)
 
     MainCamera.x, MainCamera.y, MainCamera.z = 0, 0, -400
@@ -201,7 +199,7 @@ function love.update(dt)
     if pendingResize then
         resizeTimer = resizeTimer - dt
         if resizeTimer <= 0 then
-            ReinitBuffers()
+            Routine_InitBuffers()
             BindRenderSequence()
             pendingResize = false
         end
