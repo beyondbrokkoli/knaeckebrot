@@ -5,7 +5,7 @@ require("sys_memory")
 require("core/bench")
 require("sys_init")
 require("sys_state")
-
+local ffi = require("ffi")
 local CreateSequence = require("sys_sequence")
 local Factory = require("sys_factory")
 
@@ -87,18 +87,32 @@ local function ExecuteSlideTransition()
 end
 
 local function BindRenderSequence()
+    -- 1. Cull Solids
     Seq_Render:Slot(1, "KERNELS.camera_cull_smart",
-        Visible_IDs, Count_Visible, Obj_X, Obj_Y, Obj_Z, Obj_Radius, MainCamera
+        Visible_Solid_IDs, Count_Visible_Solid, Obj_X, Obj_Y, Obj_Z, Obj_Radius, MainCamera
     )
-    Seq_Render:Slot(2, "KERNELS.render_rasterize",
-        Visible_IDs, Count_Visible, Obj_X, Obj_Y, Obj_Z,
+    -- 2. Cull Kinematics
+    Seq_Render:Slot(2, "KERNELS.camera_cull_smart",
+        Visible_Kinematic_IDs, Count_Visible_Kinematic, Obj_X, Obj_Y, Obj_Z, Obj_Radius, MainCamera
+    )
+    -- 3. Rasterize Solids (Baked Lighting)
+    Seq_Render:Slot(3, "KERNELS.render_rasterize_baked",
+        Visible_Solid_IDs, Count_Visible_Solid, Obj_X, Obj_Y, Obj_Z,
         Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ,
         Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount,
         Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid,
         Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BaseLight, MainCamera, ScreenPtr, ZBuffer
     )
-    -- NEW: We pass Box vectors so the Kernel can calculate Angle fade!
-    Seq_Render:Slot(3, "KERNELS.render_text_stamp",
+    -- 4. Rasterize Kinematics (Dynamic Lighting)
+    Seq_Render:Slot(4, "KERNELS.render_rasterize_dynamic",
+        Visible_Kinematic_IDs, Count_Visible_Kinematic, Obj_X, Obj_Y, Obj_Z,
+        Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ,
+        Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount,
+        Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid,
+        Tri_V1, Tri_V2, Tri_V3, Tri_Color, MainCamera, ScreenPtr, ZBuffer
+    )
+    -- 5. Text Stamp
+    Seq_Render:Slot(5, "KERNELS.render_text_stamp",
         SlideTitles, ActiveSlide, EngineState,
         Box_X, Box_Y, Box_Z, Box_NX, Box_NY, Box_NZ,
         MainCamera, ScreenPtr, ZBuffer
@@ -251,27 +265,27 @@ function love.draw()
         return
     end
 
-    -- ONLY RASTERIZE IF WE ARE NOT HIBERNATING
     if not snapshotBaked then
-        Count_Visible[0] = 0
+        Count_Visible_Solid[0] = 0
+        Count_Visible_Kinematic[0] = 0
 
         BENCH.Run("Camera_Cull", function()
-            local CullKernel = Seq_Render.Kernels[1]
-            if CullKernel then
-                if Count_Solid[0] > 0 then CullKernel(SLICE_SOLID_START, Count_Solid[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
-                if Count_Kinematic[0] > 0 then CullKernel(SLICE_KINEMATIC_START, Count_Kinematic[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
-            end
+            if Count_Solid[0] > 0 then Seq_Render.Kernels[1](SLICE_SOLID_START, Count_Solid[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
+            if Count_Kinematic[0] > 0 then Seq_Render.Kernels[2](SLICE_KINEMATIC_START, Count_Kinematic[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
         end)
 
         BENCH.Run("Rasterize", function()
-            local RasterKernel = Seq_Render.Kernels[2]
-            if RasterKernel then RasterKernel(CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
+            -- Clear the screen ONE time, before both kernels run!
+            local total_pixels = CANVAS_W * CANVAS_H
+            ffi.fill(ScreenPtr, total_pixels * 4, 0)
+            ffi.fill(ZBuffer, total_pixels * 4, 0x7F)
+
+            if Count_Solid[0] > 0 then Seq_Render.Kernels[3](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
+            if Count_Kinematic[0] > 0 then Seq_Render.Kernels[4](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
         end)
 
         BENCH.Run("Text_Stamp", function()
-            local TextKernel = Seq_Render.Kernels[3]
-            -- Pass HALF_W, HALF_H for correct dynamic centering!
-            if TextKernel then TextKernel(CANVAS_W, CANVAS_H, HALF_W, HALF_H, MasterTextAlpha) end
+            if Seq_Render.Kernels[5] then Seq_Render.Kernels[5](CANVAS_W, CANVAS_H, HALF_W, HALF_H, MasterTextAlpha) end
         end)
 
         ScreenImage:replacePixels(ScreenBuffer)
@@ -282,39 +296,10 @@ function love.draw()
     love.graphics.draw(ScreenImage, 0, 0)
     love.graphics.setBlendMode("alpha")
 
-    -- if Font_UI then love.graphics.setFont(Font_UI) end
-    -- love.graphics.setColor(0, 1, 0.5, 1)
-
-    -- local y_offset = 10
-    -- local line_height = 15
-    -- local x_offset = 10
-
-    -- love.graphics.print("FPS: " .. love.timer.getFPS(), x_offset, y_offset)
-    -- y_offset = y_offset + line_height * 2
-
-    -- love.graphics.print("--- KERNEL TIMES ---", x_offset, y_offset)
-    -- y_offset = y_offset + line_height
-    -- love.graphics.print("Physics | " .. BENCH.GetStats("Physics"), x_offset, y_offset)
-    -- y_offset = y_offset + line_height
-    -- love.graphics.print("Cull    | " .. BENCH.GetStats("Camera_Cull"), x_offset, y_offset)
-    -- y_offset = y_offset + line_height
-    -- love.graphics.print("Raster  | " .. BENCH.GetStats("Rasterize"), x_offset, y_offset)
-    -- y_offset = y_offset + line_height
-    -- love.graphics.print("Text    | " .. BENCH.GetStats("Text_Stamp"), x_offset, y_offset)
-    -- y_offset = y_offset + line_height * 2
-
-    -- love.graphics.print("--- UNIVERSE ---", x_offset, y_offset)
-    -- y_offset = y_offset + line_height
-    -- love.graphics.print("Total Objects : " .. NumObjects[0], x_offset, y_offset)
-    -- y_offset = y_offset + line_height
-    -- love.graphics.print("Visible IDs   : " .. Count_Visible[0], x_offset, y_offset)
-
-    -- IF WE RENDERED A ZEN FRAME, LOCK THE CPU HIBERNATION
     if EngineState[0] == STATE_ZEN or EngineState[0] == STATE_HIBERNATED then
         snapshotBaked = true
     end
 end
-
 function love.keypressed(key)
     if key == "escape" then love.event.quit()
     elseif key == "j" then

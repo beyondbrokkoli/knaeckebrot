@@ -52,8 +52,14 @@ NumSlides          = ffi.new("int[1]")
 -- ==========================================
 -- [4] THE VISIBILITY PIPELINE (Camera to Rasterizer)
 -- ==========================================
-Visible_IDs   = ffi.new("int[?]", MAX_OBJS) -- Filled by Camera Kernel
-Count_Visible = ffi.new("int[1]")           -- Read by Render Kernel
+-- Visible_IDs   = ffi.new("int[?]", MAX_OBJS) -- Filled by Camera Kernel
+-- Count_Visible = ffi.new("int[1]")           -- Read by Render Kernel
+
+Visible_Solid_IDs = ffi.new("int[?]", MAX_OBJS);
+Count_Visible_Solid = ffi.new("int[1]");
+
+Visible_Kinematic_IDs = ffi.new("int[?]", MAX_OBJS);
+Count_Visible_Kinematic = ffi.new("int[1]");
 
 -- ==========================================
 -- [5] OBJECT SoA (The Compute Data)

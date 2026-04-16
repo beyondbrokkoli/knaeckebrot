@@ -67,19 +67,19 @@ local process_manifest = {
     ["sys_init.lua"] = "BUILD/sys_init.lua",
     ["sys_factory.lua"] = "BUILD/sys_factory.lua",
     ["sys_sequence.lua"] = "BUILD/sys_sequence.lua",
---    ["KERNELS/camera_cull_smart.lua"] = "BUILD/KERNELS/camera_cull_smart.lua",
+    ["KERNELS/camera_cull_smart.lua"] = "BUILD/KERNELS/camera_cull_smart.lua",
     ["KERNELS/render_rasterize.lua"] = "BUILD/KERNELS/render_rasterize.lua",
---    ["KERNELS/phys_kinematics.lua"] = "BUILD/KERNELS/phys_kinematics.lua",
---    ["KERNELS/render_text_stamp.lua"] = "BUILD/KERNELS/render_text_stamp.lua",
---    ["ROUTINES/init_slide_text.lua"] = "BUILD/ROUTINES/init_slide_text.lua",
+    ["KERNELS/phys_kinematics.lua"] = "BUILD/KERNELS/phys_kinematics.lua",
+    ["KERNELS/render_text_stamp.lua"] = "BUILD/KERNELS/render_text_stamp.lua",
+    ["ROUTINES/init_slide_text.lua"] = "BUILD/ROUTINES/init_slide_text.lua",
     ["ROUTINES/bake_lighting.lua"] = "BUILD/ROUTINES/bake_lighting.lua",
---    ["MODULES/text_anchor.lua"] = "BUILD/MODULES/text_anchor.lua",
---    ["MODULES/text_lexer.lua"] = "BUILD/MODULES/text_lexer.lua",
---    ["MODULES/text_math.lua"] = "BUILD/MODULES/text_math.lua",
---    ["MODULES/text_baker.lua"] = "BUILD/MODULES/text_baker.lua",
+    ["MODULES/text_anchor.lua"] = "BUILD/MODULES/text_anchor.lua",
+    ["MODULES/text_lexer.lua"] = "BUILD/MODULES/text_lexer.lua",
+    ["MODULES/text_math.lua"] = "BUILD/MODULES/text_math.lua",
+    ["MODULES/text_baker.lua"] = "BUILD/MODULES/text_baker.lua",
     ["main.lua"] = "BUILD/main.lua",
---    ["conf.lua"] = "BUILD/conf.lua",
---    ["core/bench.lua"] = "BUILD/core/bench.lua",
+    ["conf.lua"] = "BUILD/conf.lua",
+    ["core/bench.lua"] = "BUILD/core/bench.lua",
 }
 local raw_manifest = {} -- now empty because we broke free from json chains
 local function setup_build_dir(dir)
@@ -118,6 +118,8 @@ local function get_sorted_files()
 end
 if not setup_build_dir("BUILD") then os.exit(1) end
 if not setup_build_dir("BUILD/KERNELS") then os.exit(1) end
+if not setup_build_dir("BUILD/MODULES") then os.exit(1) end
+if not setup_build_dir("BUILD/ROUTINES") then os.exit(1) end
 if not setup_build_dir("BUILD/core") then os.exit(1) end
 print("--- MOUNTING TO BUILD/ ---")
 for src, dest in pairs(process_manifest) do
