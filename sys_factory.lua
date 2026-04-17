@@ -1,60 +1,74 @@
--- ========================================================================
--- sys_factory.lua
--- The DOD Allocator. Claims memory slices and writes geometry.
--- ========================================================================
 local ffi = require("ffi")
 local bit = require("bit")
 local pi, cos, sin, floor = math.pi, math.cos, math.sin, math.floor
 local sqrt = math.sqrt
-
 local Factory = {}
 
--- ==========================================
--- CORE FFI ALLOCATOR (Replaces CreateTriObject)
--- ==========================================
 local function AllocateObject(slice_start, slice_max, count_ptr, x, y, z, vCount, tCount, radius)
-    -- 1. Get the current active count for this specific slice
     local current_count = count_ptr[0]
     local id = slice_start + current_count
-
-    -- 2. Prevent Memory Overflows
     if id > slice_max then
         print("[FACTORY ERROR] Slice Overflow! Cannot allocate ID " .. id)
         return nil
     end
-
-    -- 3. Claim the memory slot by incrementing the shared pointers
     count_ptr[0] = current_count + 1
     NumObjects[0] = NumObjects[0] + 1
-
-    -- 4. Spatial Setup
+    
     Obj_X[id], Obj_Y[id], Obj_Z[id] = x, y, z
     Obj_Yaw[id], Obj_Pitch[id] = 0, 0
     Obj_VelX[id], Obj_VelY[id], Obj_VelZ[id] = 0, 0, 0
     Obj_RotSpeedYaw[id], Obj_RotSpeedPitch[id] = 0, 0
     Obj_Radius[id] = radius or 50
-
-    -- Identity Basis Vectors
+    
     Obj_FWX[id], Obj_FWY[id], Obj_FWZ[id] = 0, 0, 1
     Obj_RTX[id], Obj_RTY[id], Obj_RTZ[id] = 1, 0, 0
     Obj_UPX[id], Obj_UPY[id], Obj_UPZ[id] = 0, 1, 0
-
-    -- 5. Allocate Geometry Chunks
+    
     Obj_VertStart[id] = NumTotalVerts[0]
     Obj_VertCount[id] = vCount
     Obj_TriStart[id] = NumTotalTris[0]
     Obj_TriCount[id] = tCount
-
-    -- Advance global geometry pointers
+    
     NumTotalVerts[0] = NumTotalVerts[0] + vCount
     NumTotalTris[0] = NumTotalTris[0] + tCount
-
+    
     return id
 end
 
 -- ==========================================
--- GEOMETRY PRIMITIVES
+-- EXPLICIT COLLISION VOLUME FACTORIES
 -- ==========================================
+function Factory.CreateBoundSphere(x, y, z, radius, mode)
+    local id = Count_BoundSphere[0]
+    if id >= MAX_BOUND_SPHERES then return -1 end
+    Count_BoundSphere[0] = id + 1
+    
+    BoundSphere_X[id], BoundSphere_Y[id], BoundSphere_Z[id] = x, y, z
+    BoundSphere_RSq[id] = radius * radius
+    BoundSphere_Mode[id] = mode
+    return id
+end
+
+function Factory.CreateBoundBox(x, y, z, hw, hh, ht, yaw, pitch, mode)
+    local id = Count_BoundBox[0]
+    if id >= MAX_BOUND_BOXES then return -1 end
+    Count_BoundBox[0] = id + 1
+    
+    BoundBox_X[id], BoundBox_Y[id], BoundBox_Z[id] = x, y, z
+    BoundBox_HW[id], BoundBox_HH[id], BoundBox_HT[id] = hw, hh, ht
+    
+    local cy, sy = math.cos(yaw), math.sin(yaw)
+    local cp, sp = math.cos(pitch), math.sin(pitch)
+    local fwx, fwy, fwz = sy * cp, sp, cy * cp
+    local rtx, rty, rtz = cy, 0, -sy
+    local upx, upy, upz = fwy * rtz, fwz * rtx - fwx * rtz, -fwy * rtx
+    
+    BoundBox_FWX[id], BoundBox_FWY[id], BoundBox_FWZ[id] = fwx, fwy, fwz
+    BoundBox_RTX[id], BoundBox_RTY[id], BoundBox_RTZ[id] = rtx, rty, rtz
+    BoundBox_UPX[id], BoundBox_UPY[id], BoundBox_UPZ[id] = upx, upy, upz
+    BoundBox_Mode[id] = mode
+    return id
+end
 
 function Factory.CreateSlideMesh(slice_start, slice_max, count_ptr, x, y, z, yaw, pitch, w, h, thickness, color)
     local maxDiagonal = math.sqrt((w/2)^2 + (h/2)^2 + (thickness/2)^2)
@@ -64,14 +78,12 @@ function Factory.CreateSlideMesh(slice_start, slice_max, count_ptr, x, y, z, yaw
     local vStart, tStart = Obj_VertStart[id], Obj_TriStart[id]
     local hw, hh, ht = w/2, h/2, thickness/2
 
-    -- Calculate 3D Basis Vectors for the Slide's rotation
     local cy, sy = math.cos(yaw), math.sin(yaw)
     local cp, sp = math.cos(pitch), math.sin(pitch)
     local fwx, fwy, fwz = sy * cp, sp, cy * cp
     local rtx, rty, rtz = cy, 0, -sy
     local upx, upy, upz = fwy * rtz, fwz * rtx - fwx * rtz, -fwy * rtx
 
-    -- Bind rotation to DOD Arrays
     Obj_Yaw[id], Obj_Pitch[id] = yaw, pitch
     Obj_FWX[id], Obj_FWY[id], Obj_FWZ[id] = fwx, fwy, fwz
     Obj_RTX[id], Obj_RTY[id], Obj_RTZ[id] = rtx, rty, rtz
@@ -98,16 +110,20 @@ function Factory.CreateSlideMesh(slice_start, slice_max, count_ptr, x, y, z, yaw
         Tri_Color[tIdx] = color
     end
 
-    -- Bind logical bounds for Text Stamp and Camera Lerping
-    Box_X[id], Box_Y[id], Box_Z[id] = x, y, z
-    Box_HW[id], Box_HH[id], Box_HT[id] = hw, hh, ht
-    Box_NX[id], Box_NY[id], Box_NZ[id] = -fwx, -fwy, -fwz -- Front face normal
+    -- DYNAMIC DOD REGISTRATION
+    local slideIdx = NumSlides[0]
+    if slideIdx < MAX_SLIDES then
+        NumSlides[0] = slideIdx + 1
+        Slide_X[slideIdx], Slide_Y[slideIdx], Slide_Z[slideIdx] = x, y, z
+        Slide_W[slideIdx], Slide_H[slideIdx] = w, h
+        Slide_NX[slideIdx], Slide_NY[slideIdx], Slide_NZ[slideIdx] = -fwx, -fwy, -fwz
+        Slide_ZOffset[slideIdx] = ht + 5
+    end
 
-    -- Bind Sphere Bounds for Physics/Collision Kernel
-    Sphere_X[id], Sphere_Y[id], Sphere_Z[id] = x, y, z
-    Sphere_RSq[id] = maxDiagonal * maxDiagonal
+    -- Automatically spawn our new explicit Physics Glass Dome!
+    Factory.CreateBoundBox(x, y, z, hw, hh, ht, yaw, pitch, BOUND_SOLID)
 
-    return id
+    return id, slideIdx
 end
 
 function Factory.CreatePropCube(slice_start, slice_max, count_ptr, x, y, z, size, color)

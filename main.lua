@@ -34,9 +34,9 @@ local function updateTargetSide()
     local id = TargetSlide[0]
     if NumSlides[0] == 0 or id >= NumSlides[0] then return end
 
-    sx, sy, sz = Box_X[id], Box_Y[id], Box_Z[id]
-    nx, ny, nz = Box_NX[id], Box_NY[id], Box_NZ[id]
-    w, h = Box_HW[id] * 2, Box_HH[id] * 2
+    sx, sy, sz = Slide_X[id], Slide_Y[id], Slide_Z[id]
+    nx, ny, nz = Slide_NX[id], Slide_NY[id], Slide_NZ[id]
+    w, h = Slide_W[id], Slide_H[id]
 
     local distScale = math.max(h, w * (CANVAS_H / CANVAS_W))
     local pad = (TargetState[0] == STATE_ZEN) and 0 or 200
@@ -120,10 +120,9 @@ local function BindRenderSequence()
         Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_R, Tri_G, Tri_B,
         MainCamera, ScreenPtr, ZBuffer
     )
-    -- 5. Text Stamp
     Seq_Render:Slot(5, "KERNELS.render_text_stamp",
         SlideTitles, ActiveSlide, EngineState,
-        Box_X, Box_Y, Box_Z, Box_NX, Box_NY, Box_NZ,
+        Slide_X, Slide_Y, Slide_Z, Slide_NX, Slide_NY, Slide_NZ, -- Changed!
         MainCamera, ScreenPtr, ZBuffer
     )
 end
@@ -141,7 +140,11 @@ function love.load()
     Seq_Physics:Slot(1, "KERNELS.phys_kinematics",
         Obj_X, Obj_Y, Obj_Z, Obj_VelX, Obj_VelY, Obj_VelZ,
         Obj_Yaw, Obj_Pitch, Obj_RotSpeedYaw, Obj_RotSpeedPitch,
-        Obj_FWX, Obj_FWY, Obj_FWZ, Obj_RTX, Obj_RTY, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ
+        Obj_FWX, Obj_FWY, Obj_FWZ, Obj_RTX, Obj_RTY, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ,
+        UniverseCage,
+        Count_BoundSphere, BoundSphere_X, BoundSphere_Y, BoundSphere_Z, BoundSphere_RSq, BoundSphere_Mode,
+        Count_BoundBox, BoundBox_X, BoundBox_Y, BoundBox_Z, BoundBox_HW, BoundBox_HH, BoundBox_HT,
+        BoundBox_FWX, BoundBox_FWY, BoundBox_FWZ, BoundBox_RTX, BoundBox_RTY, BoundBox_RTZ, BoundBox_UPX, BoundBox_UPY, BoundBox_UPZ, BoundBox_Mode
     )
     Seq_Camera:Slot(1, "KERNELS.camera_flight", MainCamera, FlightData, EngineState, TargetState, STATE_CINEMATIC)
     BindRenderSequence()
