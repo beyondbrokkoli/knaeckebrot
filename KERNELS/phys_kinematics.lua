@@ -19,16 +19,16 @@ return function(
             -- 1. Integrate Position and Rotation
             local vx, vy, vz = VelX[i], VelY[i], VelZ[i]
             local px, py, pz = X[i] + vx * dt, Y[i] + vy * dt, Z[i] + vz * dt
-            
+
             local y_val = Yaw[i] + RotYaw[i] * dt
             local p_val = Pitch[i] + RotPitch[i] * dt
             Yaw[i], Pitch[i] = y_val, p_val
-            
+
             local cy, sy = cos(y_val), sin(y_val)
             local cp, sp = cos(p_val), sin(p_val)
             local fwx, fwy, fwz = sy * cp, sp, cy * cp
             local rtx, rty, rtz = cy, 0, -sy
-            
+
             FWX[i], FWY[i], FWZ[i] = fwx, fwy, fwz
             RTX[i], RTY[i], RTZ[i] = rtx, rty, rtz
             UPX[i] = fwy * rtz
@@ -52,30 +52,22 @@ return function(
                 local dx, dy, dz = px - sx, py - sy, pz - sz
                 local distSq = dx*dx + dy*dy + dz*dz
                 local rSq = BoundSphere_RSq[s]
-
-                -- TYPE 3: SOLID (Contain if inside, Repel if outside)
                 if mode == 3 then
-                    -- Simplified for now: We treat it as a Repel box if the object tries to enter
                     if distSq < rSq then
                         local dist = sqrt(distSq)
                         if dist == 0 then dist = 1 end
                         local snx, sny, snz = dx/dist, dy/dist, dz/dist
-                        
-                        -- Push object out
                         local pen = sqrt(rSq) - dist
                         px, py, pz = px + snx * pen, py + sny * pen, pz + snz * pen
-                        
-                        -- Reflect velocity
                         local dot = vx*snx + vy*sny + vz*snz
                         if dot < 0 then
                             local impulse = 1.75 * dot
                             vx, vy, vz = vx - impulse * snx, vy - impulse * sny, vz - impulse * snz
-                            RotSpeedYaw[i] = RotSpeedYaw[i] * 0.99
+                            -- THE FIX: We use RotYaw, not RotSpeedYaw
+                            RotYaw[i] = RotYaw[i] * 0.99
                         end
                     end
                 end
-                
-                -- (We can add logic for Mode 1 [Contain] and Mode 2 [Repel specifically] later, but Mode 3 Solid handles the "Glass Dome" blocking behavior)
             end
 
             -- 4. Check Explicit Bounding Boxes
@@ -83,18 +75,18 @@ return function(
                 if BoundBox_Mode[b] == 3 then -- SOLID
                     local bx, by, bz = BoundBox_X[b], BoundBox_Y[b], BoundBox_Z[b]
                     local dx, dy, dz = px - bx, py - by, pz - bz
-                    
+
                     local localX = dx * BoundBox_RTX[b] + dy * BoundBox_RTY[b] + dz * BoundBox_RTZ[b]
                     local localY = dx * BoundBox_UPX[b] + dy * BoundBox_UPY[b] + dz * BoundBox_UPZ[b]
                     local localZ = dx * BoundBox_FWX[b] + dy * BoundBox_FWY[b] + dz * BoundBox_FWZ[b]
-                    
+
                     if abs(localX) < BoundBox_HW[b] + 35 and abs(localY) < BoundBox_HH[b] + 35 and abs(localZ) < BoundBox_HT[b] + 35 then
                         local sign = localZ > 0 and 1 or -1
                         local pen = (BoundBox_HT[b] + 40) - abs(localZ)
                         px = px + BoundBox_FWX[b] * pen * sign
                         py = py + BoundBox_FWY[b] * pen * sign
                         pz = pz + BoundBox_FWZ[b] * pen * sign
-                        
+
                         local vDotN = vx * BoundBox_FWX[b] + vy * BoundBox_FWY[b] + vz * BoundBox_FWZ[b]
                         if (vDotN * sign) < 0 then
                             local impulse = 1.5 * vDotN

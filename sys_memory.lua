@@ -30,8 +30,8 @@ ffi.cdef[[
     } GlobalCage;
 ]]
 -- Initialize with your classic boundaries
-UniverseCage = ffi.new("GlobalCage", {-8000, -4000, -2000, 8000, 4000, 15000, true})
-
+-- UniverseCage = ffi.new("GlobalCage", {-8000, -4000, -2000, 8000, 4000, 15000, true})
+UniverseCage = ffi.new("GlobalCage", {-15000, -4000, -15000, 15000, 15000, 15000, true})
 -- ==========================================
 -- [2] MEMORY SLICES (Contiguous Partitions)
 -- Replacing the old "Pool" indirection arrays.
