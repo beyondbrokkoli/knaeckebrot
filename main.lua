@@ -126,8 +126,126 @@ local function BindRenderSequence()
         MainCamera, ScreenPtr, ZBuffer
     )
 end
-
 function love.load()
+    Routine_InitBuffers()
+    Font_UI = love.graphics.newFont(12)
+
+    MainCamera.x, MainCamera.y, MainCamera.z = 0, 0, -400
+    MainCamera.yaw, MainCamera.pitch = 0, 0
+    MainCamera.fwx, MainCamera.fwy, MainCamera.fwz = 0, 0, 1
+    MainCamera.rtx, MainCamera.rty, MainCamera.rtz = 1, 0, 0
+    MainCamera.upx, MainCamera.upy, MainCamera.upz = 0, 1, 0
+
+    Seq_Physics:Slot(1, "KERNELS.phys_kinematics",
+        Obj_X, Obj_Y, Obj_Z, Obj_VelX, Obj_VelY, Obj_VelZ,
+        Obj_Yaw, Obj_Pitch, Obj_RotSpeedYaw, Obj_RotSpeedPitch,
+        Obj_FWX, Obj_FWY, Obj_FWZ, Obj_RTX, Obj_RTY, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ,
+        UniverseCage,
+        Count_BoundSphere, BoundSphere_X, BoundSphere_Y, BoundSphere_Z, BoundSphere_RSq, BoundSphere_Mode,
+        Count_BoundBox, BoundBox_X, BoundBox_Y, BoundBox_Z, BoundBox_HW, BoundBox_HH, BoundBox_HT,
+        BoundBox_FWX, BoundBox_FWY, BoundBox_FWZ, BoundBox_RTX, BoundBox_RTY, BoundBox_RTZ, BoundBox_UPX, BoundBox_UPY, BoundBox_UPZ, BoundBox_Mode
+    )
+    Seq_Camera:Slot(1, "KERNELS.camera_flight", MainCamera, FlightData, EngineState, TargetState, STATE_CINEMATIC)
+    BindRenderSequence()
+
+    local C_CREAM = 4294306522
+    local C_LATTE = 4292131280
+
+    local num_slides = 12
+    local radius = 3500
+    local height_step = 800
+
+    for i = 0, num_slides - 1 do
+        local angle = (i / num_slides) * math.pi * 4 -- 2 full rotations
+        local sx = math.sin(angle) * radius
+        local sy = i * height_step
+        local sz = math.cos(angle) * radius
+
+        -- Slide faces inward toward the center pillar
+        local yaw = angle + math.pi
+        local pitch = -0.1 -- Slight tilt upwards
+
+        local color = (i % 2 == 0) and C_CREAM or C_LATTE
+
+        local slide_id = Factory.CreateSlideMesh(
+            SLICE_SOLID_START, SLICE_SOLID_MAX, Count_Solid,
+            sx, sy, sz, yaw, pitch,
+            1600, 900, 40, color
+        )
+
+        manifest[i] = {
+            title = "SPIRAL ASCENT: LEVEL " .. string.format("%02d", i + 1),
+            content = {
+                "~ \27[36mTELEMETRY:\27[0m X:" .. math.floor(sx) .. " | Y:" .. math.floor(sy) .. " | Z:" .. math.floor(sz),
+                "",
+                "The DOD engine now fully supports 6-DOF slide positioning.",
+                "Notice how the text matrices seamlessly track the rotated normals.",
+                (i % 2 == 0) and "# All geometry shares a single rasterization pass." or "# Physics and collision spheres are fully bound.",
+                "",
+                "~ \27[33mPress Right Arrow to Ascend.\27[0m"
+            }
+        }
+
+        -- ==========================================
+        -- THE CHAOS GENERATOR (Replaces old sparse props)
+        -- ==========================================
+        local objects_per_slide = 25 
+        local colors = {0xFF00FFFF, 0xFFFF00FF, 0xFFFFFF00, 0xFF00FF00, 0xFFFF4400}
+
+        for j = 1, objects_per_slide do
+            local px = sx + math.random(-800, 800)
+            local py = sy + math.random(200, 1500) 
+            local pz = sz + math.random(-800, 800)
+            
+            local size = math.random(50, 150)
+            local prop_color = colors[math.random(1, #colors)]
+            local shape_type = math.random(1, 3)
+            local id = nil
+
+            if shape_type == 1 then
+                id = Factory.CreatePropCube(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, px, py, pz, size, prop_color)
+            elseif shape_type == 2 then
+                id = Factory.CreatePropPyramid(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, px, py, pz, size, prop_color)
+            else
+                id = Factory.CreateDataSpike(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, px, py, pz, size * 1.5, prop_color)
+            end
+
+            if id then
+                Obj_VelX[id] = math.random(-2000, 2000)
+                Obj_VelY[id] = math.random(-1000, 2500) 
+                Obj_VelZ[id] = math.random(-2000, 2000)
+
+                Obj_RotSpeedYaw[id] = math.random(-50, 50) / 10.0
+                Obj_RotSpeedPitch[id] = math.random(-50, 50) / 10.0
+            end
+        end
+        -- ==========================================
+
+        -- Add a structural center pillar piece every few slides
+        if i % 3 == 0 then
+            local torus_id = Factory.CreateTorus(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, 0, sy, 0, 1000, 100, 32, 12, 0xFF00FF00)
+            if torus_id then  -- Add this safety check!
+                Obj_RotSpeedYaw[torus_id] = 0.5
+                Obj_RotSpeedPitch[torus_id] = 0.2
+            end
+        end
+    end
+
+    NumSlides[0] = num_slides
+
+    Routine_InitText(manifest, SlideTitles, MainCamera.fov, CANVAS_W, CANVAS_H)
+
+    if Count_Solid[0] > 0 then
+        Routine_BakeLighting(SLICE_SOLID_START, Count_Solid[0])
+    end
+    
+    if NumTotalTris[0] > 0 then
+        Routine_BakeColors(NumTotalTris[0])
+    end
+    
+    EngineState[0] = STATE_FREEFLY
+end
+function love.OLD_load()
     Routine_InitBuffers()
     Font_UI = love.graphics.newFont(12)
 
