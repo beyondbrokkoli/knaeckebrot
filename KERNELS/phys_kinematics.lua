@@ -67,6 +67,28 @@ return function(
                             RotYaw[i] = RotYaw[i] * 0.99
                         end
                     end
+                elseif mode == 1 then -- CONTAIN (Trap Inside)
+                    -- Only apply containment if the object is hitting the shell!
+                    -- (Prevents every sphere in the universe from pulling on it)
+                    local r = sqrt(rSq)
+                    local outerShellSq = (r + 400) * (r + 400)
+
+                    if distSq > rSq and distSq < outerShellSq then
+                        local dist = sqrt(distSq)
+                        if dist == 0 then dist = 1 end
+                        local snx, sny, snz = dx/dist, dy/dist, dz/dist
+                        local pen = dist - r
+
+                        -- Push object back INWARDS
+                        px, py, pz = px - snx * pen, py - sny * pen, pz - snz * pen
+                        local dot = vx*snx + vy*sny + vz*snz
+
+                        if dot > 0 then
+                            local impulse = 1.75 * dot
+                            vx, vy, vz = vx - impulse * snx, vy - impulse * sny, vz - impulse * snz
+                            RotYaw[i] = RotYaw[i] * 0.99
+                        end
+                    end
                 end
             end
 

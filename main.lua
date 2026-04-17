@@ -112,7 +112,7 @@ local function BindRenderSequence()
         Tri_BaseLight, MainCamera, ScreenPtr, ZBuffer
     )
     -- 4. Rasterize Kinematics (Dynamic Lighting)
-    Seq_Render:Slot(4, "KERNELS.render_rasterize_dynamic_fog",
+    Seq_Render:Slot(4, "KERNELS.render_rasterize_dynamic",
         Visible_Kinematic_IDs, Count_Visible_Kinematic, Obj_X, Obj_Y, Obj_Z,
         Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ,
         Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount,
@@ -227,6 +227,26 @@ function love.load()
             if torus_id then  -- Add this safety check!
                 Obj_RotSpeedYaw[torus_id] = 0.5
                 Obj_RotSpeedPitch[torus_id] = 0.2
+            end
+        end
+        -- Create a Containment Sphere around the slide (Radius 1200, Mode 1 = BOUND_CONTAIN)
+        Factory.CreateBoundSphere(sx, sy, sz, 1200, 1)
+
+        -- Spawn 8 grey cubes trapped inside the sphere
+        for k = 1, 8 do
+            -- Spawn near the center to ensure they start inside the sphere
+            local cx = sx + math.random(-400, 400)
+            local cy = sy + math.random(-400, 400)
+            local cz = sz + math.random(-400, 400)
+            
+            local cube_id = Factory.CreatePropCube(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, cx, cy, cz, 60, 0xFF888888)
+            
+            if cube_id then
+                Obj_VelX[cube_id] = math.random(-1500, 1500)
+                Obj_VelY[cube_id] = math.random(-1500, 1500)
+                Obj_VelZ[cube_id] = math.random(-1500, 1500)
+                Obj_RotSpeedYaw[cube_id] = math.random(-40, 40) / 10.0
+                Obj_RotSpeedPitch[cube_id] = math.random(-40, 40) / 10.0
             end
         end
     end
