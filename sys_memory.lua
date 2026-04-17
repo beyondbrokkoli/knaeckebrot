@@ -141,14 +141,20 @@ ActiveSlide = ffi.new("int[1]")
 -- ==========================================
 -- [10] GLOBAL APPLICATION STATE (Merged from sys_state)
 -- ==========================================
-tX, tY, tZ, tYaw, tPitch = 0, 0, 0, 0, 0
-startX, startY, startZ, startYaw, startPitch = 0, 0, 0, 0, 0
+ffi.cdef[[
+    typedef struct {
+        float sx, sy, sz, syaw, spitch;
+        float tx, ty, tz, tyaw, tpitch;
+        float lerpT;
+    } FlightTracker;
+]]
+FlightData = ffi.new("FlightTracker")
+
 lastFreeX, lastFreeY, lastFreeZ, lastFreeYaw, lastFreePitch = 0, 0, 0, 0, 0
 pendingResize = false; resizeTimer = 0
 isMouseCaptured = false
-
 manifest = {}; SlideTitles = {}
-globalTimer = 0; lerpT = 0
+globalTimer = 0
 Font_Slide, Font_UI, Font_Terminal = nil, nil, nil
 
 HUD = { open = false, scroll = 0, lines = {"BGB HUD INITIALIZED", "READY FOR QUERY"}, mode = "LOOKUP" }

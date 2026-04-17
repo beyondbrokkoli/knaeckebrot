@@ -65,10 +65,11 @@ local process_manifest = {
     ["sys_memory.lua"] = "BUILD/sys_memory.lua",
     ["sys_factory.lua"] = "BUILD/sys_factory.lua",
     ["sys_sequence.lua"] = "BUILD/sys_sequence.lua",
-    ["KERNELS/camera_cull_smart.lua"] = "BUILD/KERNELS/camera_cull_smart.lua",
+    ["KERNELS/camera_flight.lua"] = "BUILD/KERNELS/camera_flight.lua",
+    ["KERNELS/camera_cull.lua"] = "BUILD/KERNELS/camera_cull.lua",
     ["KERNELS/render_rasterize_baked.lua"] = "BUILD/KERNELS/render_rasterize_baked.lua",
     ["KERNELS/render_rasterize_dynamic.lua"] = "BUILD/KERNELS/render_rasterize_dynamic.lua",
---    ["KERNELS/render_rasterize_dynamic_fog.lua"] = "BUILD/KERNELS/render_rasterize_dynamic_fog.lua",
+    ["KERNELS/render_rasterize_dynamic_fog.lua"] = "BUILD/KERNELS/render_rasterize_dynamic_fog.lua",
     ["KERNELS/phys_kinematics.lua"] = "BUILD/KERNELS/phys_kinematics.lua",
     ["KERNELS/render_text_stamp.lua"] = "BUILD/KERNELS/render_text_stamp.lua",
     ["ROUTINES/init_buffers.lua"] = "BUILD/ROUTINES/init_buffers.lua",
@@ -80,8 +81,8 @@ local process_manifest = {
     ["MODULES/text_math.lua"] = "BUILD/MODULES/text_math.lua",
     ["MODULES/text_baker.lua"] = "BUILD/MODULES/text_baker.lua",
     ["main.lua"] = "BUILD/main.lua",
---    ["conf.lua"] = "BUILD/conf.lua",
-    ["core/bench.lua"] = "BUILD/core/bench.lua",
+    ["conf.lua"] = "BUILD/conf.lua",
+    ["MODULES/bench.lua"] = "BUILD/MODULES/bench.lua",
 }
 local raw_manifest = {} -- now empty because we broke free from json chains
 local function setup_build_dir(dir)

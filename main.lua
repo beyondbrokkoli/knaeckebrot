@@ -1,5 +1,5 @@
 require("sys_memory")
-require("core/bench")
+require("MODULES.bench")
 
 local ffi = require("ffi")
 local CreateSequence = require("sys_sequence")
@@ -11,6 +11,7 @@ local Routine_BakeColors = require("ROUTINES.bake_colors")
 
 local Seq_Physics = CreateSequence()
 local Seq_Render = CreateSequence()
+local Seq_Camera = CreateSequence()
 
 local function lerp(a, b, t) return a + (b - a) * t end
 local function lerpAngle(a, b, t)
@@ -49,31 +50,37 @@ local function updateTargetSide()
 
     local dx, dy, dz
     if dF <= dB then
-        tX, tY, tZ = fx, fy, fz
+        print(string.format("[GATEKEEPER] Routing -> FRONT face. (dF: %.1f <= dB: %.1f)", dF, dB))
+        FlightData.tx, FlightData.ty, FlightData.tz = fx, fy, fz
         dx, dy, dz = sx - fx, sy - fy, sz - fz
     else
-        tX, tY, tZ = bx, by, bz
+        print(string.format("[GATEKEEPER] Routing -> BACK face. (dF: %.1f > dB: %.1f)", dF, dB))
+        FlightData.tx, FlightData.ty, FlightData.tz = bx, by, bz
         dx, dy, dz = sx - bx, sy - by, sz - bz
     end
 
-    tYaw = math.atan2(dx, dz)
-    tPitch = math.atan2(dy, math.sqrt(dx*dx + dz*dz))
+    FlightData.tyaw = math.atan2(dx, dz)
+    FlightData.tpitch = math.atan2(dy, math.sqrt(dx*dx + dz*dz))
+
+    print(string.format("[GATEKEEPER] Final Flight Target: Pos(%.1f, %.1f, %.1f) | Angles(Yaw: %.2f, Pitch: %.2f)",
+        FlightData.tx, FlightData.ty, FlightData.tz, FlightData.tyaw, FlightData.tpitch))
+    print("[GATEKEEPER] ------------------------------------------------\n")
 end
 
 local function TriggerContinuousFlight()
-    updateTargetSide()
-    startX, startY, startZ = MainCamera.x, MainCamera.y, MainCamera.z
-    startYaw, startPitch = MainCamera.yaw, MainCamera.pitch
-    lerpT = 0
+    updateTargetSide("TriggerContinuousFlight")
+    FlightData.sx, FlightData.sy, FlightData.sz = MainCamera.x, MainCamera.y, MainCamera.z
+    FlightData.syaw, FlightData.spitch = MainCamera.yaw, MainCamera.pitch
+    FlightData.lerpT = 0
     EngineState[0] = STATE_CINEMATIC
     snapshotBaked = false
 end
 
 local function ExecuteSlideTransition()
     if EngineState[0] == STATE_ZEN or EngineState[0] == STATE_HIBERNATED then
-        updateTargetSide()
-        MainCamera.x, MainCamera.y, MainCamera.z = tX, tY, tZ
-        MainCamera.yaw, MainCamera.pitch = tYaw, tPitch
+        updateTargetSide("ExecuteSlideTransition [Snap to ZEN]")
+        MainCamera.x, MainCamera.y, MainCamera.z = FlightData.tx, FlightData.ty, FlightData.tz
+        MainCamera.yaw, MainCamera.pitch = FlightData.tyaw, FlightData.tpitch
         EngineState[0] = STATE_ZEN
         TargetState[0] = STATE_ZEN
         ActiveSlide[0] = TargetSlide[0]
@@ -88,11 +95,11 @@ end
 
 local function BindRenderSequence()
     -- 1. Cull Solids
-    Seq_Render:Slot(1, "KERNELS.camera_cull_smart",
+    Seq_Render:Slot(1, "KERNELS.camera_cull",
         Visible_Solid_IDs, Count_Visible_Solid, Obj_X, Obj_Y, Obj_Z, Obj_Radius, MainCamera
     )
     -- 2. Cull Kinematics
-    Seq_Render:Slot(2, "KERNELS.camera_cull_smart",
+    Seq_Render:Slot(2, "KERNELS.camera_cull",
         Visible_Kinematic_IDs, Count_Visible_Kinematic, Obj_X, Obj_Y, Obj_Z, Obj_Radius, MainCamera
     )
     -- 3. Rasterize Solids (Baked Lighting)
@@ -136,32 +143,69 @@ function love.load()
         Obj_Yaw, Obj_Pitch, Obj_RotSpeedYaw, Obj_RotSpeedPitch,
         Obj_FWX, Obj_FWY, Obj_FWZ, Obj_RTX, Obj_RTY, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ
     )
-
+    Seq_Camera:Slot(1, "KERNELS.camera_flight", MainCamera, FlightData, EngineState, TargetState, STATE_CINEMATIC)
     BindRenderSequence()
 
-    local C_CREAM = 4294306522; -- The goat color
-    Factory.CreateSlideMesh(
-        SLICE_SOLID_START, SLICE_SOLID_MAX, Count_Solid,
-        0, 0, 800,
-        800, 450, 20,
-        C_CREAM
-    )
-    manifest[0] = {
-        title = "KFC CRISPNESS RESTORED",
-        content = {
-            "Welcome back to the absolute pinnacle of DOD engine design.",
-            "",
-            "~ \27[36mDynamic Scale Mapping\27[0m | \27[33mZen Mode Hibernation\27[0m",
-            "",
-            "# This text runs at true zero allocations per frame."
+    local C_CREAM = 4294306522
+    local C_LATTE = 4292131280
+
+    local num_slides = 12
+    local radius = 3500
+    local height_step = 800
+
+    for i = 0, num_slides - 1 do
+        local angle = (i / num_slides) * math.pi * 4 -- 2 full rotations
+        local sx = math.sin(angle) * radius
+        local sy = i * height_step
+        local sz = math.cos(angle) * radius
+
+        -- Slide faces inward toward the center pillar
+        local yaw = angle + math.pi
+        local pitch = -0.1 -- Slight tilt upwards
+
+        local color = (i % 2 == 0) and C_CREAM or C_LATTE
+
+        local slide_id = Factory.CreateSlideMesh(
+            SLICE_SOLID_START, SLICE_SOLID_MAX, Count_Solid,
+            sx, sy, sz, yaw, pitch,
+            1600, 900, 40, color
+        )
+
+        manifest[i] = {
+            title = "SPIRAL ASCENT: LEVEL " .. string.format("%02d", i + 1),
+            content = {
+                "~ \27[36mTELEMETRY:\27[0m X:" .. math.floor(sx) .. " | Y:" .. math.floor(sy) .. " | Z:" .. math.floor(sz),
+                "",
+                "The DOD engine now fully supports 6-DOF slide positioning.",
+                "Notice how the text matrices seamlessly track the rotated normals.",
+                (i % 2 == 0) and "# All geometry shares a single rasterization pass." or "# Physics and collision spheres are fully bound.",
+                "",
+                "~ \27[33mPress Right Arrow to Ascend.\27[0m"
+            }
         }
-    }
-    NumSlides[0] = 1
+
+        -- Decorate the path with spinning shapes
+        local cube_id = Factory.CreatePropCube(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, sx, sy + 700, sz, 150, 0xFF00FFFF)
+        Obj_RotSpeedYaw[cube_id] = 1.5
+        Obj_RotSpeedPitch[cube_id] = 1.0
+
+        local spike_id = Factory.CreateDataSpike(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, sx + math.cos(yaw)*1200, sy, sz - math.sin(yaw)*1200, 300, 0xFFFF00FF)
+        Obj_RotSpeedYaw[spike_id] = -2.0
+
+        -- Add a structural center pillar piece every few slides
+        if i % 3 == 0 then
+            local torus_id = Factory.CreateTorus(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, 0, sy, 0, 1000, 100, 32, 12, 0xFF00FF00)
+            Obj_RotSpeedYaw[torus_id] = 0.5
+            Obj_RotSpeedPitch[torus_id] = 0.2
+        end
+    end
+
+    NumSlides[0] = num_slides
 
     Routine_InitText(manifest, SlideTitles, MainCamera.fov, CANVAS_W, CANVAS_H)
 
-    Factory.CreateMegaknot(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, 0, 0, 8000)
-    Factory.CreatePropCube(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, 0, 0, 600, 100, 0xFF0000FF)
+    -- Factory.CreateMegaknot(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, 0, 0, 8000)
+    -- Factory.CreatePropCube(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, 0, 0, 600, 100, 0xFF0000FF)
 
     -- THE MISSING EXECUTION: Bake the lighting for all solid and kinematic objects!
     if Count_Solid[0] > 0 then
@@ -208,25 +252,8 @@ function love.update(dt)
 
     if EngineState[0] == STATE_FREEFLY then
         UpdateFreeflyCamera(dt)
-    elseif EngineState[0] == STATE_CINEMATIC then
-        lerpT = math.min(1.0, lerpT + dt * 1.5)
-        local easeT = 1 - (1 - lerpT) * (1 - lerpT)
-
-        MainCamera.x = lerp(startX, tX, easeT)
-        MainCamera.y = lerp(startY, tY, easeT)
-        MainCamera.z = lerp(startZ, tZ, easeT)
-        MainCamera.yaw = lerpAngle(startYaw, tYaw, easeT)
-        MainCamera.pitch = lerpAngle(startPitch, tPitch, easeT)
-        UpdateCameraBasis()
-
-        if lerpT >= 1.0 then
-            MainCamera.x, MainCamera.y, MainCamera.z = tX, tY, tZ
-            MainCamera.yaw, MainCamera.pitch = tYaw, tPitch
-            UpdateCameraBasis()
-            EngineState[0] = TargetState[0]
-        end
     end
-
+    Seq_Camera:Run(dt)
     -- PERFECT MATCH TO OLD SysText.Update(EngineState, dt)
     local targetAlpha = (EngineState[0] >= STATE_PRESENT) and 1.0 or 0.0
     local alphaSpeed = (EngineState[0] == STATE_CINEMATIC) and 50.0 or 3.3
@@ -300,14 +327,14 @@ function love.draw()
 
     love.graphics.setColor(0, 1, 0, 1)
     if Font_UI then love.graphics.setFont(Font_UI) end
-    
+
     love.graphics.print("FPS: " .. love.timer.getFPS(), 20, 20)
     love.graphics.print("SLIDE: " .. (TargetSlide[0] + 1) .. " / " .. NumSlides[0], 20, 40)
-    
+
     local stateNames = {"FREEFLY", "CINEMATIC", "PRESENT", "ZEN", "HIBERNATED"}
     love.graphics.print("STATE: " .. stateNames[EngineState[0] + 1], 20, 60)
     love.graphics.print("SOLIDS: " .. Count_Solid[0] .. " | KINEMATICS: " .. Count_Kinematic[0], 20, 80)
-    
+
     love.graphics.setColor(1, 1, 1, 1)
 
     if EngineState[0] == STATE_ZEN or EngineState[0] == STATE_HIBERNATED then
@@ -319,13 +346,11 @@ function love.keypressed(key)
     elseif key == "j" then
         isMouseCaptured = not isMouseCaptured
         love.mouse.setRelativeMode(isMouseCaptured)
-        
     elseif EngineState[0] == STATE_FREEFLY and (key == "p" or key == "space") then
         lastFreeX, lastFreeY, lastFreeZ = MainCamera.x, MainCamera.y, MainCamera.z
         lastFreeYaw, lastFreePitch = MainCamera.yaw, MainCamera.pitch
         TargetState[0] = STATE_PRESENT
         TriggerContinuousFlight()
-        
     elseif EngineState[0] ~= STATE_FREEFLY and (key == "left" or key == "right") then
         local oldTarget = TargetSlide[0]
         if key == "right" then
@@ -334,7 +359,7 @@ function love.keypressed(key)
             TargetSlide[0] = (TargetSlide[0] - 1 + NumSlides[0]) % NumSlides[0]
         end
         if TargetSlide[0] ~= oldTarget then ExecuteSlideTransition() end
-        
+
     elseif key == "i" or key == "u" then
         EngineState[0] = STATE_FREEFLY; TargetState[0] = STATE_FREEFLY
         if key == "u" then
@@ -342,7 +367,7 @@ function love.keypressed(key)
             MainCamera.yaw, MainCamera.pitch = lastFreeYaw, lastFreePitch
             UpdateCameraBasis()
         end
-        
+
     elseif key == "z" then
         if EngineState[0] == STATE_FREEFLY then return end
         TargetState[0] = (EngineState[0] == STATE_PRESENT) and STATE_ZEN or STATE_PRESENT

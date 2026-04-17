@@ -56,8 +56,7 @@ end
 -- GEOMETRY PRIMITIVES
 -- ==========================================
 
--- In sys_factory.lua
-function Factory.CreateSlideMesh(slice_start, slice_max, count_ptr, x, y, z, w, h, thickness, color)
+function Factory.CreateSlideMesh(slice_start, slice_max, count_ptr, x, y, z, yaw, pitch, w, h, thickness, color)
     local maxDiagonal = math.sqrt((w/2)^2 + (h/2)^2 + (thickness/2)^2)
     local id = AllocateObject(slice_start, slice_max, count_ptr, x, y, z, 8, 12, maxDiagonal)
     if not id then return nil end
@@ -65,10 +64,24 @@ function Factory.CreateSlideMesh(slice_start, slice_max, count_ptr, x, y, z, w, 
     local vStart, tStart = Obj_VertStart[id], Obj_TriStart[id]
     local hw, hh, ht = w/2, h/2, thickness/2
 
+    -- Calculate 3D Basis Vectors for the Slide's rotation
+    local cy, sy = math.cos(yaw), math.sin(yaw)
+    local cp, sp = math.cos(pitch), math.sin(pitch)
+    local fwx, fwy, fwz = sy * cp, sp, cy * cp
+    local rtx, rty, rtz = cy, 0, -sy
+    local upx, upy, upz = fwy * rtz, fwz * rtx - fwx * rtz, -fwy * rtx
+
+    -- Bind rotation to DOD Arrays
+    Obj_Yaw[id], Obj_Pitch[id] = yaw, pitch
+    Obj_FWX[id], Obj_FWY[id], Obj_FWZ[id] = fwx, fwy, fwz
+    Obj_RTX[id], Obj_RTY[id], Obj_RTZ[id] = rtx, rty, rtz
+    Obj_UPX[id], Obj_UPY[id], Obj_UPZ[id] = upx, upy, upz
+
     local verts = {
         {-hw, -hh, -ht}, {hw, -hh, -ht}, {hw, hh, -ht}, {-hw, hh, -ht},
-        {-hw, -hh,  ht}, {hw, -hh,  ht}, {hw, hh,  ht}, {-hw, hh,  ht}
+        {-hw, -hh, ht}, {hw, -hh, ht}, {hw, hh, ht}, {-hw, hh, ht}
     }
+    
     for i, v in ipairs(verts) do
         local vIdx = vStart + (i - 1)
         Vert_LX[vIdx], Vert_LY[vIdx], Vert_LZ[vIdx] = v[1], v[2], v[3]
@@ -78,17 +91,22 @@ function Factory.CreateSlideMesh(slice_start, slice_max, count_ptr, x, y, z, w, 
         0,2,1, 0,3,2, 4,5,6, 4,6,7, 0,1,5, 0,5,4,
         1,2,6, 1,6,5, 2,3,7, 2,7,6, 3,0,4, 3,4,7
     }
+    
     for i = 1, #indices, 3 do
         local tIdx = tStart + math.floor((i-1)/3)
         Tri_V1[tIdx], Tri_V2[tIdx], Tri_V3[tIdx] = indices[i] + vStart, indices[i+1] + vStart, indices[i+2] + vStart
         Tri_Color[tIdx] = color
     end
 
-    -- THE UPGRADE: Register the mathematical box for camera pathing!
+    -- Bind logical bounds for Text Stamp and Camera Lerping
     Box_X[id], Box_Y[id], Box_Z[id] = x, y, z
     Box_HW[id], Box_HH[id], Box_HT[id] = hw, hh, ht
-    Box_NX[id], Box_NY[id], Box_NZ[id] = 0, 0, -1 -- Slides face the camera natively
-    
+    Box_NX[id], Box_NY[id], Box_NZ[id] = -fwx, -fwy, -fwz -- Front face normal
+
+    -- Bind Sphere Bounds for Physics/Collision Kernel
+    Sphere_X[id], Sphere_Y[id], Sphere_Z[id] = x, y, z
+    Sphere_RSq[id] = maxDiagonal * maxDiagonal
+
     return id
 end
 
