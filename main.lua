@@ -102,30 +102,37 @@ local function BindRenderSequence()
     Seq_Render:Slot(2, "KERNELS.camera_cull",
         Visible_Kinematic_IDs, Count_Visible_Kinematic, Obj_X, Obj_Y, Obj_Z, Obj_Radius, MainCamera
     )
+
     -- 3. Rasterize Solids (Baked Lighting)
     Seq_Render:Slot(3, "KERNELS.render_rasterize_baked",
-        Visible_Solid_IDs, Count_Visible_Solid, Obj_X, Obj_Y, Obj_Z,
+        Visible_Solid_IDs, Count_Visible_Solid, 
+        Obj_X, Obj_Y, Obj_Z, 
         Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ,
         Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount,
         Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid,
-        Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_R, Tri_G, Tri_B,
-        Tri_BaseLight, MainCamera, ScreenPtr, ZBuffer
-    )
-    -- 4. Rasterize Kinematics (Dynamic Lighting)
-    Seq_Render:Slot(4, "KERNELS.render_rasterize_dynamic",
-        Visible_Kinematic_IDs, Count_Visible_Kinematic, Obj_X, Obj_Y, Obj_Z,
-        Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ,
-        Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount,
-        Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid,
-        Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_R, Tri_G, Tri_B,
+        Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B, 
         MainCamera, ScreenPtr, ZBuffer
     )
+
+    -- 4. Rasterize Kinematics (Dynamic Lighting)
+    Seq_Render:Slot(4, "KERNELS.render_rasterize_dynamic",
+        Visible_Kinematic_IDs, Count_Visible_Kinematic, 
+        Obj_X, Obj_Y, Obj_Z, 
+        Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ,
+        Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount,
+        Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid,
+        Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B, 
+        MainCamera, ScreenPtr, ZBuffer
+    )
+
+    -- 5. Text Stamp
     Seq_Render:Slot(5, "KERNELS.render_text_stamp",
         SlideTitles, ActiveSlide, EngineState,
-        Slide_X, Slide_Y, Slide_Z, Slide_NX, Slide_NY, Slide_NZ, -- Changed!
+        Slide_X, Slide_Y, Slide_Z, Slide_NX, Slide_NY, Slide_NZ,
         MainCamera, ScreenPtr, ZBuffer
     )
 end
+
 function love.load()
     Routine_InitBuffers()
     Font_UI = love.graphics.newFont(12)

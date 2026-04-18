@@ -1,45 +1,20 @@
 local bit = require("bit"); local ffi = require("ffi")
 local max, min, floor, ceil, sqrt = math.max, math.min, math.floor, math.ceil, math.sqrt
+local RasterizeTriangle = require("MODULES.rasterize_triangle")
 
-return function(Visible_IDs, Count_Visible, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ, Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount, Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_R, Tri_G, Tri_B, MainCamera, ScreenPtr, ZBuffer)
-
-    local function RasterizeTriangle(x1,y1,z1, x2,y2,z2, x3,y3,z3, shadedColor, CANVAS_W, CANVAS_H)
-        -- (PASTE THE EXACT SAME RasterizeTriangle FUNCTION FROM ABOVE HERE)
-        if y1 > y2 then x1,x2 = x2,x1; y1,y2 = y2,y1; z1,z2 = z2,z1 end
-        if y1 > y3 then x1,x3 = x3,x1; y1,y3 = y3,y1; z1,z3 = z3,z1 end
-        if y2 > y3 then x2,x3 = x3,x2; y2,y3 = y3,y2; z2,z3 = z3,z2 end
-        local total_height = y3 - y1; if total_height <= 0 then return end
-        local inv_total = 1.0 / total_height
-        local y_start, y_end = max(0, ceil(y1)), min(CANVAS_H - 1, floor(y3))
-        for y = y_start, y_end do
-            local is_upper = y < y2; local x_a, x_b, z_a, z_b
-            if is_upper then
-                local dy = y2 - y1; if dy == 0 then dy = 1 end
-                local t_a, t_b = (y-y1)*inv_total, (y-y1)/dy
-                x_a, z_a = x1+(x3-x1)*t_a, z1+(z3-z1)*t_a
-                x_b, z_b = x1+(x2-x1)*t_b, z1+(z2-z1)*t_b
-            else
-                local dy = y3 - y2; if dy == 0 then dy = 1 end
-                local t_a, t_b = (y-y1)*inv_total, (y-y2)/dy
-                x_a, z_a = x1+(x3-x1)*t_a, z1+(z3-z1)*t_a
-                x_b, z_b = x2+(x3-x2)*t_b, z2+(z3-z2)*t_b
-            end
-            if x_a > x_b then x_a,x_b = x_b,x_a; z_a,z_b = z_b,z_a end
-            local rw = x_b - x_a
-            if rw > 0 then
-                local z_step = (z_b - z_a) / rw
-                local start_x, end_x = max(0, ceil(x_a)), min(CANVAS_W - 1, floor(x_b))
-                local cz = z_a + z_step * (start_x - x_a)
-                local off = y * CANVAS_W
-                for x = start_x, end_x do
-                    if cz < ZBuffer[off + x] then
-                        ZBuffer[off + x] = cz; ScreenPtr[off + x] = shadedColor
-                    end
-                    cz = cz + z_step
-                end
-            end
-        end
-    end
+return function(
+    -- [4] Pipeline
+    Visible_IDs, Count_Visible, 
+    -- [5] Object SoA
+    Obj_X, Obj_Y, Obj_Z, 
+    Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ, 
+    -- [6] Geometry SoA
+    Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount, 
+    Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, 
+    Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B, 
+    -- [8] Singletons & Render Targets
+    MainCamera, ScreenPtr, ZBuffer
+)
 
     return function(CANVAS_W, CANVAS_H, HALF_W, HALF_H)
         local visible_total = Count_Visible[0]
@@ -82,9 +57,8 @@ return function(Visible_IDs, Count_Visible, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RT
                     local px1, py1, pz1 = Vert_PX[i1], Vert_PY[i1], Vert_PZ[i1]
                     local px2, py2, pz2 = Vert_PX[i2], Vert_PY[i2], Vert_PZ[i2]
                     local px3, py3, pz3 = Vert_PX[i3], Vert_PY[i3], Vert_PZ[i3]
-                    if (px2-px1)*(py3-py1) - (py2-py1)*(px3-px1) < 0 then
 
-                        -- PURE DYNAMIC LIGHTING (Cross products, no branching)
+                    if (px2-px1)*(py3-py1) - (py2-py1)*(px3-px1) < 0 then
                         local wx1, wy1, wz1 = Vert_CX[i1], Vert_CY[i1], Vert_CZ[i1]
                         local wx2, wy2, wz2 = Vert_CX[i2], Vert_CY[i2], Vert_CZ[i2]
                         local wx3, wy3, wz3 = Vert_CX[i3], Vert_CY[i3], Vert_CZ[i3]
@@ -94,16 +68,16 @@ return function(Visible_IDs, Count_Visible, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RT
                         local nz = (wx1-wx2)*(wy1-wy3) - (wy1-wy2)*(wx1-wx3)
 
                         local len = sqrt(nx*nx + ny*ny + nz*nz); if len == 0 then len = 1 end
-
-                        -- RESTORED LEGACY DYNAMIC LIGHTING
                         local final_light = max(0.2, min(1.0, (nx*0.5 + ny*1.0 + nz*0.5) / len))
 
-                        local tc = Tri_Color[idx]
-                        local a = bit.band(bit.rshift(tc, 24), 0xFF)
-                        local b = min(255, bit.band(bit.rshift(tc, 16), 0xFF) * final_light)
-                        local g = min(255, bit.band(bit.rshift(tc, 8), 0xFF) * final_light)
-                        local r = min(255, bit.band(tc, 0xFF) * final_light)
-                        RasterizeTriangle(px1,py1,pz1, px2,py2,pz2, px3,py3,pz3, bit.bor(bit.lshift(a, 24), bit.lshift(b, 16), bit.lshift(g, 8), r), CANVAS_W, CANVAS_H)
+                        -- NO BIT SHIFTING UNPACKING. READ FROM SOA.
+                        local a = Tri_A[idx]
+                        local b = min(255, Tri_B[idx] * final_light)
+                        local g = min(255, Tri_G[idx] * final_light)
+                        local r = min(255, Tri_R[idx] * final_light)
+
+                        local shadedColor = bit.bor(bit.lshift(a, 24), bit.lshift(b, 16), bit.lshift(g, 8), r)
+                        RasterizeTriangle(px1,py1,pz1, px2,py2,pz2, px3,py3,pz3, shadedColor, CANVAS_W, CANVAS_H, ScreenPtr, ZBuffer)
                     end
                 end
             end
