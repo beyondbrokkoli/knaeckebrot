@@ -1,30 +1,58 @@
 -- ========================================================================
--- core/bench.lua
--- Pure, leak-free aggregate benchmarking.
+-- MODULES/bench.lua
+-- Pure FFI-backed benchmarking. Zero Lua table thrashing in the hot loop.
 -- ========================================================================
-BENCH = {
-    registry = {}
-}
+local ffi = require("ffi")
+
+ffi.cdef[[
+    typedef struct {
+        double total;
+        double min;
+        double max;
+        int count;
+    } BenchStat;
+]]
+
+local MAX_BENCH_SLOTS = 32
+local BenchData = ffi.new("BenchStat[?]", MAX_BENCH_SLOTS)
+
+for i = 0, MAX_BENCH_SLOTS - 1 do
+    BenchData[i].min = 9999999.0
+    BenchData[i].max = 0.0
+end
+
+local registry_map = {}
+local next_id = 0
+
+BENCH = {}
 
 function BENCH.Run(label, func)
+    -- Map string label to an integer ID (only allocates/looks up once!)
+    local id = registry_map[label]
+    if not id then
+        id = next_id
+        registry_map[label] = id
+        next_id = next_id + 1
+    end
+
     local start = love.timer.getTime()
     func()
     local duration = love.timer.getTime() - start
 
-    if not BENCH.registry[label] then
-        BENCH.registry[label] = { count = 0, total = 0, min = math.huge, max = 0 }
-    end
-
-    local stats = BENCH.registry[label]
-    stats.count = stats.count + 1
-    stats.total = stats.total + duration
-
-    if duration < stats.min then stats.min = duration end
-    if duration > stats.max then stats.max = duration end
+    -- Pure FFI pointer arithmetic. The JIT compiler loves this.
+    BenchData[id].count = BenchData[id].count + 1
+    BenchData[id].total = BenchData[id].total + duration
+    if duration < BenchData[id].min then BenchData[id].min = duration end
+    if duration > BenchData[id].max then BenchData[id].max = duration end
 end
 
-function BENCH.GetStats(label)
-    local s = BENCH.registry[label]
-    if not s or s.count == 0 then return "N/A" end
-    return string.format("Avg: %.6fs | Max: %.6fs", s.total / s.count, s.max)
+-- We need to reset min/max periodically, otherwise the 'max' just
+-- gets stuck permanently on the 1-second lag spike from when the app started.
+function BENCH.ResetRollingStats()
+    for i = 0, next_id - 1 do
+        BenchData[i].count = 0
+        BenchData[i].total = 0
+        BenchData[i].min = 9999999.0
+        BenchData[i].max = 0.0
+    end
 end

@@ -13,6 +13,12 @@ local Seq_Physics = CreateSequence()
 local Seq_Render = CreateSequence()
 local Seq_Camera = CreateSequence()
 
+-- Add near the top of main.lua, below your requires
+local HUD_timer = 0
+local HUD_frames = 0
+local HUD_min_dt, HUD_max_dt, HUD_avg_dt = 999.0, 0.0, 0.0
+local Display_FPS, Display_Min, Display_Max, Display_Avg = 0, 0, 0, 0
+
 local function lerp(a, b, t) return a + (b - a) * t end
 local function lerpAngle(a, b, t)
     local diff = (b - a + math.pi) % (math.pi * 2) - math.pi
@@ -293,6 +299,29 @@ local function UpdateFreeflyCamera(dt)
 end
 
 function love.update(dt)
+    -- 1. FRAME TRACKING MATH
+    local ms = dt * 1000
+    if ms < HUD_min_dt then HUD_min_dt = ms end
+    if ms > HUD_max_dt then HUD_max_dt = ms end
+    HUD_avg_dt = HUD_avg_dt + ms
+    HUD_frames = HUD_frames + 1
+    HUD_timer = HUD_timer + dt
+
+    -- 2. PUBLISH HUD STATS ONCE PER SECOND
+    if HUD_timer >= 1.0 then
+        Display_FPS = love.timer.getFPS()
+        Display_Min = HUD_min_dt
+        Display_Max = HUD_max_dt
+        Display_Avg = HUD_avg_dt / HUD_frames
+
+        -- Reset the rolling windows!
+        HUD_min_dt, HUD_max_dt, HUD_avg_dt = 999.0, 0.0, 0.0
+        HUD_frames = 0
+        HUD_timer = 0
+
+        -- Optionally reset BENCH min/max here too so they are also rolling
+        BENCH.ResetRollingStats()
+    end
     dt = math.min(dt, 0.033)
 
     if pendingResize then
@@ -383,12 +412,20 @@ function love.draw()
     love.graphics.setColor(0, 1, 0, 1)
     if Font_UI then love.graphics.setFont(Font_UI) end
 
-    love.graphics.print("FPS: " .. love.timer.getFPS(), 20, 20)
-    love.graphics.print("SLIDE: " .. (TargetSlide[0] + 1) .. " / " .. NumSlides[0], 20, 40)
+    -- New Frame Time HUD
+    love.graphics.print(string.format("FPS: %d  |  FRAME: %.2fms (Min: %.2fms / Max: %.2fms)", 
+        Display_FPS, Display_Avg, Display_Min, Display_Max), 20, 20)
+
+    -- New Memory HUD (collectgarbage returns Kilobytes)
+    local mem_kb = collectgarbage("count")
+    love.graphics.print(string.format("LUA HEAP: %.2f MB", mem_kb / 1024), 20, 40)
+
+    -- Original Stats
+    love.graphics.print("SLIDE: " .. (TargetSlide[0] + 1) .. " / " .. NumSlides[0], 20, 60)
 
     local stateNames = {"FREEFLY", "CINEMATIC", "PRESENT", "ZEN", "HIBERNATED"}
-    love.graphics.print("STATE: " .. stateNames[EngineState[0] + 1], 20, 60)
-    love.graphics.print("SOLIDS: " .. Count_Solid[0] .. " | KINEMATICS: " .. Count_Kinematic[0], 20, 80)
+    love.graphics.print("STATE: " .. stateNames[EngineState[0] + 1], 20, 80)
+    love.graphics.print("SOLIDS: " .. Count_Solid[0] .. " | KINEMATICS: " .. Count_Kinematic[0], 20, 100)
 
     love.graphics.setColor(1, 1, 1, 1)
 
