@@ -38,11 +38,68 @@ function UpdateCameraBasis()
 end
 
 local function BindRenderSequence()
-    Seq_Render:Slot(1, "KERNELS.camera_cull", Visible_Solid_IDs, Count_Visible_Solid, Obj_X, Obj_Y, Obj_Z, Obj_Radius, MainCamera)
-    Seq_Render:Slot(2, "KERNELS.camera_cull", Visible_Kinematic_IDs, Count_Visible_Kinematic, Obj_X, Obj_Y, Obj_Z, Obj_Radius, MainCamera)
-    Seq_Render:Slot(3, "KERNELS.render_rasterize_baked", Visible_Solid_IDs, Count_Visible_Solid, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ, Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount, Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B, MainCamera, ScreenPtr, ZBuffer)
-    Seq_Render:Slot(4, "KERNELS.render_rasterize_dynamic", Visible_Kinematic_IDs, Count_Visible_Kinematic, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ, Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount, Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B, MainCamera, ScreenPtr, ZBuffer)
-    Seq_Render:Slot(5, "KERNELS.render_text_stamp", SlideTitles, ActiveSlide, EngineState, Slide_X, Slide_Y, Slide_Z, Slide_NX, Slide_NY, Slide_NZ, MainCamera, ScreenPtr, ZBuffer)
+    -- ==========================================
+    -- CULLING PASS (Slots 1, 2, 6)
+    -- ==========================================
+    Seq_Render:Slot(1, "KERNELS.camera_cull",
+        Visible_Solid_IDs, Count_Visible_Solid,         -- 1. Integration Pointers
+        Obj_X, Obj_Y, Obj_Z, Obj_Radius,                -- 2. Object Bounds
+        MainCamera                                      -- 3. System
+    )
+
+    Seq_Render:Slot(2, "KERNELS.camera_cull",
+        Visible_Kinematic_IDs, Count_Visible_Kinematic, -- 1. Integration Pointers
+        Obj_X, Obj_Y, Obj_Z, Obj_Radius,                -- 2. Object Bounds
+        MainCamera                                      -- 3. System
+    )
+
+    Seq_Render:Slot(6, "KERNELS.camera_cull",
+        Visible_Procedural_IDs, Count_Visible_Procedural, -- 1. Integration Pointers
+        Obj_X, Obj_Y, Obj_Z, Obj_Radius,                  -- 2. Object Bounds
+        MainCamera                                        -- 3. System
+    )
+
+    -- ==========================================
+    -- RASTERIZATION PASS (Slots 3, 4, 7)
+    -- ==========================================
+    Seq_Render:Slot(3, "KERNELS.render_rasterize_baked",
+        Visible_Solid_IDs, Count_Visible_Solid,                                       -- 1. Visibility Pointers
+        Obj_X, Obj_Y, Obj_Z,                                                          -- 2. Object Positions
+        Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ,       -- 3. Object Matrices
+        Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount,                     -- 4. Geometry Offsets
+        Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, -- 5. Vertices
+        Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B,               -- 6. Triangles & Colors
+        MainCamera, ScreenPtr, ZBuffer                                                -- 7. System Singletons
+    )
+
+    Seq_Render:Slot(4, "KERNELS.render_rasterize_dynamic",
+        Visible_Kinematic_IDs, Count_Visible_Kinematic,                               -- 1. Visibility Pointers
+        Obj_X, Obj_Y, Obj_Z,                                                          -- 2. Object Positions
+        Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ,       -- 3. Object Matrices
+        Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount,                     -- 4. Geometry Offsets
+        Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, -- 5. Vertices
+        Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B,               -- 6. Triangles & Colors
+        MainCamera, ScreenPtr, ZBuffer                                                -- 7. System Singletons
+    )
+
+    Seq_Render:Slot(7, "KERNELS.render_rasterize_baked",
+        Visible_Procedural_IDs, Count_Visible_Procedural,                             -- 1. Visibility Pointers
+        Obj_X, Obj_Y, Obj_Z,                                                          -- 2. Object Positions
+        Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ,       -- 3. Object Matrices
+        Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount,                     -- 4. Geometry Offsets
+        Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, -- 5. Vertices
+        Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B,               -- 6. Triangles & Colors
+        MainCamera, ScreenPtr, ZBuffer                                                -- 7. System Singletons
+    )
+
+    -- ==========================================
+    -- TEXT STAMP PASS (Slot 5)
+    -- ==========================================
+    Seq_Render:Slot(5, "KERNELS.render_text_stamp",
+        SlideTitles, ActiveSlide, EngineState,                                        -- 1. App State Pointers
+        Slide_X, Slide_Y, Slide_Z, Slide_NX, Slide_NY, Slide_NZ,                      -- 2. Slide Geometry
+        MainCamera, ScreenPtr, ZBuffer                                                -- 3. System Singletons
+    )
 end
 
 function love.load()
@@ -64,8 +121,8 @@ function love.load()
         Count_BoundBox, BoundBox_X, BoundBox_Y, BoundBox_Z, BoundBox_HW, BoundBox_HH, BoundBox_HT,
         BoundBox_FWX, BoundBox_FWY, BoundBox_FWZ, BoundBox_RTX, BoundBox_RTY, BoundBox_RTZ, BoundBox_UPX, BoundBox_UPY, BoundBox_UPZ, BoundBox_Mode
     )
-    Seq_Physics:Slot(2, "KERNELS.proc_treadmill", 
-        SLICE_AUTONOMOUS_START, 100, Count_Autonomous,
+    Seq_Physics:Slot(2, "KERNELS.proc_treadmill",
+        SLICE_PROCEDURAL_START, 100, Count_Procedural, -- Updated!
         Obj_X, Obj_Y, Obj_Z, Obj_Radius,
         Obj_FWX, Obj_FWY, Obj_FWZ, Obj_RTX, Obj_RTY, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ,
         Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount,
@@ -164,10 +221,12 @@ function love.draw()
     if not snapshotBaked then
         Count_Visible_Solid[0] = 0
         Count_Visible_Kinematic[0] = 0
+        Count_Visible_Procedural[0] = 0 -- Reset the new counter
 
         BENCH.Begin("Camera_Cull")
         if Count_Solid[0] > 0 then Seq_Render.Kernels[1](SLICE_SOLID_START, Count_Solid[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
         if Count_Kinematic[0] > 0 then Seq_Render.Kernels[2](SLICE_KINEMATIC_START, Count_Kinematic[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
+        if Count_Procedural[0] > 0 then Seq_Render.Kernels[6](SLICE_PROCEDURAL_START, Count_Procedural[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
         BENCH.End("Camera_Cull")
 
         BENCH.Begin("Rasterize")
@@ -175,7 +234,11 @@ function love.draw()
         ffi.fill(ScreenPtr, total_pixels * 4, 0)
         ffi.fill(ZBuffer, total_pixels * 4, 0x7F)
 
+        -- Draw Opaque/Baked geometry first
         if Count_Solid[0] > 0 then Seq_Render.Kernels[3](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
+        if Count_Procedural[0] > 0 then Seq_Render.Kernels[7](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
+
+        -- Draw Dynamic geometry last
         if Count_Kinematic[0] > 0 then Seq_Render.Kernels[4](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
         BENCH.End("Rasterize")
 

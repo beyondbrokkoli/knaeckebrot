@@ -7,20 +7,14 @@ local ffi = require("ffi")
 -- ==========================================
 -- [1] THE UNIVERSE BOUNDARIES (Static Numbers)
 -- ==========================================
-MAX_OBJS = 1024
-MAX_TOTAL_VERTS = 250000
-MAX_TOTAL_TRIS = 500000
+MAX_OBJS = 4096          -- Upgraded! (Costs practically nothing)
+MAX_TOTAL_VERTS = 500000 
+MAX_TOTAL_TRIS = 1000000 -- Give the Megaknot the room it deserves
 
 MAX_SLIDES = 64
-
--- NEW: Explicit Collision Capacities
 MAX_BOUND_SPHERES = 128
 MAX_BOUND_BOXES = 128
-
--- NEW: Collision Modes
-BOUND_CONTAIN = 1 -- Traps objects inside
-BOUND_REPEL   = 2 -- Bounces objects away
-BOUND_SOLID   = 3 -- Both (A solid glass dome)
+BOUND_CONTAIN = 1; BOUND_REPEL = 2; BOUND_SOLID = 3;
 
 ffi.cdef[[
     typedef struct {
@@ -29,60 +23,43 @@ ffi.cdef[[
         bool isActive;
     } GlobalCage;
 ]]
--- Initialize with your classic boundaries
--- UniverseCage = ffi.new("GlobalCage", {-8000, -4000, -2000, 8000, 4000, 15000, true})
 UniverseCage = ffi.new("GlobalCage", {-15000, -4000, -15000, 15000, 15000, 15000, true})
--- ==========================================
--- [2] MEMORY SLICES (Contiguous Partitions)
--- Replacing the old "Pool" indirection arrays.
--- ==========================================
-SLICE_SOLID_START = 0
-SLICE_SOLID_MAX = 199
--- Give Kinematics 600 slots! (200 through 799)
-SLICE_KINEMATIC_START = 200
-SLICE_KINEMATIC_MAX = 799
--- Push the other slices down
-SLICE_COLLIDER_START = 800
-SLICE_COLLIDER_MAX = 899
-SLICE_AUTONOMOUS_START = 900
-SLICE_AUTONOMOUS_MAX = 999
-SLICE_DEEP_SPACE_START = 1000
-SLICE_DEEP_SPACE_MAX = 1023
 
 -- ==========================================
--- [3] SHARED KERNEL COUNTERS (The FFI Whiteboards)
--- These breathe and change, so they must be int[1] pointers.
+-- [2] MEMORY SLICES (The ATX Upgrade)
+-- ==========================================
+SLICE_SOLID_START      = 0;    SLICE_SOLID_MAX      = 399   -- Presentations
+SLICE_KINEMATIC_START  = 400;  SLICE_KINEMATIC_MAX  = 1399  -- Physics props
+SLICE_AUTONOMOUS_START = 1400; SLICE_AUTONOMOUS_MAX = 1999  -- Megaknot & Panopticum!
+SLICE_PROCEDURAL_START = 2000; SLICE_PROCEDURAL_MAX = 2999  -- Treadmill Ring Buffers
+SLICE_COLLIDER_START   = 3000; SLICE_COLLIDER_MAX   = 3499  -- Invisible walls
+SLICE_DEEP_SPACE_START = 3500; SLICE_DEEP_SPACE_MAX = 4095  -- ???
+
+-- ==========================================
+-- [3] SHARED KERNEL COUNTERS
 -- ==========================================
 Count_Solid        = ffi.new("int[1]")
 Count_Kinematic    = ffi.new("int[1]")
-Count_Collider     = ffi.new("int[1]")
 Count_Autonomous   = ffi.new("int[1]")
+Count_Procedural   = ffi.new("int[1]") -- NEW
+Count_Collider     = ffi.new("int[1]")
 Count_DeepSpace    = ffi.new("int[1]")
 
 NumObjects         = ffi.new("int[1]")
 NumTotalVerts      = ffi.new("int[1]")
 NumTotalTris       = ffi.new("int[1]")
 NumSlides          = ffi.new("int[1]")
-
--- Inside [3] SHARED KERNEL COUNTERS
-Count_BoundSphere = ffi.new("int[1]")
-Count_BoundBox    = ffi.new("int[1]")
+Count_BoundSphere  = ffi.new("int[1]")
+Count_BoundBox     = ffi.new("int[1]")
 
 -- ==========================================
--- [4] THE VISIBILITY PIPELINE (Camera to Rasterizer)
+-- [4] THE VISIBILITY PIPELINE
 -- ==========================================
--- Visible_IDs   = ffi.new("int[?]", MAX_OBJS) -- Filled by Camera Kernel
--- Count_Visible = ffi.new("int[1]")           -- Read by Render Kernel
+Visible_Solid_IDs = ffi.new("int[?]", MAX_OBJS); Count_Visible_Solid = ffi.new("int[1]")
+Visible_Kinematic_IDs = ffi.new("int[?]", MAX_OBJS); Count_Visible_Kinematic = ffi.new("int[1]")
+Visible_Autonomous_IDs = ffi.new("int[?]", MAX_OBJS); Count_Visible_Autonomous = ffi.new("int[1]")
+Visible_Procedural_IDs = ffi.new("int[?]", MAX_OBJS); Count_Visible_Procedural = ffi.new("int[1]") -- NEW
 
-Visible_Solid_IDs = ffi.new("int[?]", MAX_OBJS);
-Count_Visible_Solid = ffi.new("int[1]");
-
-Visible_Kinematic_IDs = ffi.new("int[?]", MAX_OBJS);
-Count_Visible_Kinematic = ffi.new("int[1]");
-
--- NEW: Rendering arrays for the Procedural Track
-Visible_Autonomous_IDs = ffi.new("int[?]", MAX_OBJS);
-Count_Visible_Autonomous = ffi.new("int[1]");
 -- ==========================================
 -- [5] OBJECT SoA (The Compute Data)
 -- ==========================================
