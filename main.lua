@@ -74,7 +74,7 @@ local function BindRenderSequence()
     --    Seq_Render:Slot(4, "KERNELS.render_rasterize_dynamic", Visible_Kinematic_IDs, Count_Visible_Kinematic, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ, Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount, Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B, MainCamera, ScreenPtr, ZBuffer)
 
     -- LIVE TOPOLOGY: Slot 9 (The Megaknot ghost)
-    Seq_Render:Slot(9, "KERNELS.render_topology_live", MainCamera, ScreenPtr, ZBuffer)
+    -- Seq_Render:Slot(9, "KERNELS.render_topology_live", MainCamera, ScreenPtr, ZBuffer)
 
     -- OVERLAYS: Slot 5 (The Slide Text)
     Seq_Render:Slot(5, "KERNELS.render_text_stamp", SlideTitles, ActiveSlide, EngineState, Slide_X, Slide_Y, Slide_Z, Slide_NX, Slide_NY, Slide_NZ, MainCamera, ScreenPtr, ZBuffer)
@@ -198,7 +198,7 @@ function love.draw()
 --        if Count_Kinematic[0] > 0  then Seq_Render.Kernels[4](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end -- THE DYNAMIC SLOT
 
         -- LIVE MEGAKNOT (Surgical Addition)
-        Seq_Render.Kernels[9](CANVAS_W, CANVAS_H, HALF_W, HALF_H, globalTimer, 0, 400)
+        -- Seq_Render.Kernels[9](CANVAS_W, CANVAS_H, HALF_W, HALF_H, globalTimer, 0, 400)
 
         -- TEXT OVERLAY
         if Seq_Render.Kernels[5] then Seq_Render.Kernels[5](CANVAS_W, CANVAS_H, HALF_W, HALF_H, MasterTextAlpha) end
