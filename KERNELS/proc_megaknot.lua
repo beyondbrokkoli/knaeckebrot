@@ -1,10 +1,10 @@
 -- ========================================================================
--- KERNELS/proc_treadmill.lua
--- The Infinite Parametric Serpent.
--- Weaves a massive Frenet-Serret tube around the presentation spiral.
+-- KERNELS/proc_megaknot.lua
+-- The Live Megaknot Exhibition.
+-- Slowly constructs a massive P=4, Q=9 Torus Knot in dedicated world space.
 -- ========================================================================
 local bit = require("bit")
-local math_sin, math_cos, sqrt, abs, floor = math.sin, math.cos, math.sqrt, math.abs, math.floor
+local math_sin, math_cos, math_pi, sqrt, abs, floor = math.sin, math.cos, math.pi, math.sqrt, math.abs, math.floor
 
 return function(
     SLICE_START, MAX_TILES, Count_Ptr,
@@ -18,24 +18,31 @@ return function(
     local CHUNK_LENGTH = 1000
     local SEGMENTS = 8
     local SIDES = 12
-    local TUBE_RADIUS = 250
+    local TUBE_RADIUS = 300
     local VCOUNT = (SEGMENTS + 1) * SIDES
     local TCOUNT = SEGMENTS * SIDES * 2
+    
+    -- The knot must perfectly close its loop when we hit MAX_TILES
+    local TOTAL_LENGTH = MAX_TILES * CHUNK_LENGTH
 
-    -- Helper: The Parametric Spine
-    -- 's' is the linear distance traversed along the track
+    -- Helper: The Megaknot Math
     local function getSpine(s)
-        local t = s * 0.0002
+        local u = s / TOTAL_LENGTH
+        local theta = u * math_pi * 2
         
-        -- The Slides sit at radius 3500. We weave in and out of them.
-        local r = 3500 + math_sin(t * 4.1) * 1500
+        local P, Q = 4, 9
+        local SCALE = 2000
         
-        -- Orbit around the Y axis
-        local x = math_sin(t * 2.5) * r
-        local z = math_cos(t * 2.5) * r
+        local r = SCALE * (2 + math_cos(P * theta))
         
-        -- Ascend the Y axis steadily, with some vertical roller-coaster bobbing
-        local y = s * 0.12 + math_sin(t * 3.7) * 600
+        -- The Dedicated Exhibition Space
+        local offsetX = 12000
+        local offsetY = 4400  -- Roughly halfway up the slide tower
+        local offsetZ = 0
+        
+        local x = offsetX + r * math_cos(Q * theta)
+        local y = offsetY + r * math_sin(P * theta)
+        local z = offsetZ + r * math_sin(Q * theta)
         
         return x, y, z
     end
@@ -50,12 +57,8 @@ return function(
         
         Obj_VertStart[id], Obj_VertCount[id] = vStart, VCOUNT
         Obj_TriStart[id],  Obj_TriCount[id]  = tStart, TCOUNT
-        
-        -- A massive bounding sphere (1800) prevents the camera from accidentally culling 
-        -- the corners of the chunk as it twists through the screen edges.
         Obj_Radius[id] = 1800 
 
-        -- Identity Matrix (All vertices are pre-rotated by the Frenet frame locally)
         Obj_FWX[id], Obj_FWY[id], Obj_FWZ[id] = 0, 0, 1
         Obj_RTX[id], Obj_RTY[id], Obj_RTZ[id] = 1, 0, 0
         Obj_UPX[id], Obj_UPY[id], Obj_UPZ[id] = 0, 1, 0
@@ -63,7 +66,6 @@ return function(
         Global_NumVerts[0] = Global_NumVerts[0] + VCOUNT
         Global_NumTris[0]  = Global_NumTris[0]  + TCOUNT
 
-        -- Wire the Triangle Indices once. The mesh structure never changes!
         local tIdx = tStart
         for i = 0, SEGMENTS - 1 do
             for j = 0, SIDES - 1 do
@@ -86,19 +88,24 @@ return function(
 
     local spawn_count = 0
     local next_spawn_s = 0
+    
+    -- The construction throttle timer
+    local spawn_timer = 0
+    local SPAWN_DELAY = 0.1 -- Spawns 1 chunk every 50ms (Takes 5 seconds to build the knot)
 
     -- ==========================================
     -- PHASE 2: THE HOT LOOP (Memory Injection)
     -- ==========================================
     return function(dt)
-        -- We removed the EngineState checks so it's visible in ALL modes!
-        -- We spawn exactly 1 chunk per frame. This acts as a background thread,
-        -- letting you literally watch the serpent "grow" around your slides without lagging.
+        spawn_timer = spawn_timer + dt
         
-        if spawn_count < MAX_TILES then
+        -- While loop ensures we don't drop frames if 'dt' spikes
+        while spawn_count < MAX_TILES and spawn_timer >= SPAWN_DELAY do
+            spawn_timer = spawn_timer - SPAWN_DELAY
+            
             local id = SLICE_START + spawn_count
             
-            -- Calculate the true volumetric center of this specific chunk for the camera culler
+            -- Calculate the volumetric center of the chunk
             local cx, cy, cz = getSpine(next_spawn_s + CHUNK_LENGTH * 0.5)
             Obj_X[id] = cx
             Obj_Y[id] = cy
@@ -108,17 +115,16 @@ return function(
             local tStart = Obj_TriStart[id]
 
             -- 1. Calculate a dynamic color for this chunk
-            local phase = next_spawn_s * 0.00005
-            local intensity = (math_sin(phase * 15) + 1.0) * 0.5
-            local r = floor((0.1 + intensity * 0.6) * 255)
-            local g = floor((0.4 + intensity * 0.4) * 255)
-            local b = floor((0.7 + intensity * 0.3) * 255)
+            local phase = (next_spawn_s / TOTAL_LENGTH) * math_pi * 2
+            local intensity = (math_sin(phase * 4) + 1.0) * 0.5
+            local r = floor((0.8 + intensity * 0.2) * 255)
+            local g = floor((0.1 + intensity * 0.5) * 255)
+            local b = floor((0.8 + intensity * 0.2) * 255)
             local chunk_color = bit.bor(0xFF000000, bit.lshift(b, 16), bit.lshift(g, 8), r)
 
-            -- Paint the triangles
             for t = 0, TCOUNT - 1 do Tri_BakedColor[tStart + t] = chunk_color end
 
-            -- 2. Inject Frenet-Serret vertices dynamically into memory!
+            -- 2. Inject Frenet-Serret vertices locally into memory
             for i = 0, SEGMENTS do
                 local segment_s = next_spawn_s + (i / SEGMENTS) * CHUNK_LENGTH
                 
@@ -144,19 +150,16 @@ return function(
                 normX, normY, normZ = normX/nLen, normY/nLen, normZ/nLen
 
                 for j = 0, SIDES - 1 do
-                    local v_angle = (j / SIDES) * math.pi * 2
+                    local v_angle = (j / SIDES) * math_pi * 2
                     local cosV, sinV = math_cos(v_angle) * TUBE_RADIUS, math_sin(v_angle) * TUBE_RADIUS
                     local vIdx = vStart + i * SIDES + j
                     
-                    -- Crucial Fix: Subtract the chunk's true center (cx, cy, cz) 
-                    -- to keep vertices strictly in local space relative to Obj_XYZ!
                     Vert_LX[vIdx] = (px - cx) + normX * cosV + bx * sinV
                     Vert_LY[vIdx] = (py - cy) + normY * cosV + by * sinV
                     Vert_LZ[vIdx] = (pz - cz) + normZ * cosV + bz * sinV 
                 end
             end
 
-            -- Update limits and advance the tracking parameter
             Count_Ptr[0] = Count_Ptr[0] + 1
             spawn_count = spawn_count + 1
             next_spawn_s = next_spawn_s + CHUNK_LENGTH 

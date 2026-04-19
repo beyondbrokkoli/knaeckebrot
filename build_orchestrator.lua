@@ -60,14 +60,14 @@ local function copy_file(src, dest)
     f_out:close()
     return true
 end
---local process_manifest = {
+local process_manifest = {
 --    ["KERNELS/proc_megaknot.lua"] = "BUILD/KERNELS/proc_megaknot.lua",
---    ["sys_sequence.lua"] = "BUILD/sys_sequence.lua",
---    ["main.lua"] = "BUILD/main.lua",
+    ["sys_sequence.lua"] = "BUILD/sys_sequence.lua",
+    ["main.lua"] = "BUILD/main.lua",
 --    ["KERNELS/render_topology_live.lua"] = "BUILD/KERNELS/render_topology_live.lua",
 --    ["KERNELS/render_rasterize_dynamic.lua"] = "BUILD/KERNELS/render_rasterize_dynamic.lua",
---}
-local process_manifest = {
+}
+local OLD_process_manifest = {
     ["sys_memory.lua"] = "BUILD/sys_memory.lua",
     ["sys_factory.lua"] = "BUILD/sys_factory.lua",
     ["sys_sequence.lua"] = "BUILD/sys_sequence.lua",

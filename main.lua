@@ -14,6 +14,7 @@ globalTimer = 0
 local Seq_Physics = CreateSequence()
 local Seq_Render = CreateSequence()
 local Seq_Camera = CreateSequence()
+local Seq_Procedural = CreateSequence() -- Add this new dedicated pipeline!
 
 local ProcGen = require("MODULES.proc_gen")
 
@@ -71,7 +72,7 @@ local function BindRenderSequence()
 
     -- RASTERIZE (DYNAMIC): Slot 4 (Kinematic Props - Cubes/Pyramids)
     -- commented out to see whats going on
-    --    Seq_Render:Slot(4, "KERNELS.render_rasterize_dynamic", Visible_Kinematic_IDs, Count_Visible_Kinematic, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ, Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount, Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B, MainCamera, ScreenPtr, ZBuffer)
+    Seq_Render:Slot(4, "KERNELS.render_rasterize_dynamic", Visible_Kinematic_IDs, Count_Visible_Kinematic, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ, Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount, Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B, MainCamera, ScreenPtr, ZBuffer)
 
     -- LIVE TOPOLOGY: Slot 9 (The Megaknot ghost)
     -- Seq_Render:Slot(9, "KERNELS.render_topology_live", MainCamera, ScreenPtr, ZBuffer)
@@ -99,8 +100,7 @@ function love.load()
         Count_BoundBox, BoundBox_X, BoundBox_Y, BoundBox_Z, BoundBox_HW, BoundBox_HH, BoundBox_HT,
         BoundBox_FWX, BoundBox_FWY, BoundBox_FWZ, BoundBox_RTX, BoundBox_RTY, BoundBox_RTZ, BoundBox_UPX, BoundBox_UPY, BoundBox_UPZ, BoundBox_Mode
     )
-    
-    Seq_Physics:Slot(2, "KERNELS.proc_treadmill",
+    Seq_Procedural:Slot(1, "KERNELS.proc_megaknot",
         SLICE_PROCEDURAL_START, 100, Count_Procedural,
         Obj_X, Obj_Y, Obj_Z, Obj_Radius,
         Obj_FWX, Obj_FWY, Obj_FWZ, Obj_RTX, Obj_RTY, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ,
@@ -108,7 +108,6 @@ function love.load()
         Vert_LX, Vert_LY, Vert_LZ, Tri_V1, Tri_V2, Tri_V3, Tri_BakedColor,
         NumTotalVerts, NumTotalTris, MainCamera, EngineState, TargetState
     )
-
     Seq_Camera:Slot(1, "KERNELS.camera_flight", MainCamera, FlightData, EngineState, TargetState, STATE_CINEMATIC)
     
     BindRenderSequence()
@@ -165,6 +164,9 @@ function love.update(dt)
         BENCH.Begin("Physics")
         Seq_Physics:Run(SLICE_KINEMATIC_START, Count_Kinematic[0], dt)
         BENCH.End("Physics")
+        -- Run our background builder!
+        Seq_Procedural:Run(dt)
+
     end
 end
 
@@ -196,9 +198,6 @@ function love.draw()
         if Count_Solid[0] > 0      then Seq_Render.Kernels[3](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
         if Count_Procedural[0] > 0 then Seq_Render.Kernels[7](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
 --        if Count_Kinematic[0] > 0  then Seq_Render.Kernels[4](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end -- THE DYNAMIC SLOT
-
-        -- LIVE MEGAKNOT (Surgical Addition)
-        -- Seq_Render.Kernels[9](CANVAS_W, CANVAS_H, HALF_W, HALF_H, globalTimer, 0, 400)
 
         -- TEXT OVERLAY
         if Seq_Render.Kernels[5] then Seq_Render.Kernels[5](CANVAS_W, CANVAS_H, HALF_W, HALF_H, MasterTextAlpha) end
