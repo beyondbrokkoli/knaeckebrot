@@ -10,6 +10,7 @@ ffi.cdef[[
         double min;
         double max;
         int count;
+        float start_time;
     } BenchStat;
 ]]
 
@@ -55,4 +56,22 @@ function BENCH.ResetRollingStats()
         BenchData[i].min = 9999999.0
         BenchData[i].max = 0.0
     end
+end
+function BENCH.Begin(label)
+    local id = registry_map[label]
+    if not id then 
+        id = next_id; registry_map[label] = id; next_id = next_id + 1 
+    end
+    -- Store start time in a temporary Lua table or directly in the FFI struct
+    BenchData[id].start_time = love.timer.getTime()
+end
+
+function BENCH.End(label)
+    local id = registry_map[label]
+    local duration = love.timer.getTime() - BenchData[id].start_time
+    
+    BenchData[id].count = BenchData[id].count + 1
+    BenchData[id].total = BenchData[id].total + duration
+    if duration < BenchData[id].min then BenchData[id].min = duration end
+    if duration > BenchData[id].max then BenchData[id].max = duration end
 end

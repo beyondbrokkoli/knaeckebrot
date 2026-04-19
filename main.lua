@@ -19,6 +19,15 @@ local HUD_frames = 0
 local HUD_min_dt, HUD_max_dt, HUD_avg_dt = 999.0, 0.0, 0.0
 local Display_FPS, Display_Min, Display_Max, Display_Avg = 0, 0, 0, 0
 
+local Cached_HUD_FPS = ""
+local Cached_HUD_Mem = ""
+local Cached_HUD_Slide = ""
+local Cached_HUD_State = ""
+local Cached_HUD_Counts = ""
+
+-- Move this OUT of the draw loop so the table is only allocated once!
+local EngineStateNames = {"FREEFLY", "CINEMATIC", "PRESENT", "ZEN", "HIBERNATED"}
+
 local function lerp(a, b, t) return a + (b - a) * t end
 local function lerpAngle(a, b, t)
     local diff = (b - a + math.pi) % (math.pi * 2) - math.pi
@@ -319,6 +328,10 @@ function love.update(dt)
         HUD_frames = 0
         HUD_timer = 0
 
+        Cached_HUD_FPS = string.format("FPS: %d  |  FRAME: %.2fms (Min: %.2fms / Max: %.2fms)", 
+        Display_FPS, Display_Avg, Display_Min, Display_Max)
+        Cached_HUD_Mem = string.format("LUA HEAP: %.2f MB", collectgarbage("count") / 1024)
+
         -- Optionally reset BENCH min/max here too so they are also rolling
         BENCH.ResetRollingStats()
     end
@@ -364,9 +377,12 @@ function love.update(dt)
     end
 
     if EngineState[0] ~= STATE_ZEN and EngineState[0] ~= STATE_HIBERNATED then
-        BENCH.Run("Physics", function()
-            Seq_Physics:Run(SLICE_KINEMATIC_START, Count_Kinematic[0], dt)
-        end)
+        -- BENCH.Run("Physics", function()
+            -- Seq_Physics:Run(SLICE_KINEMATIC_START, Count_Kinematic[0], dt)
+        -- end)
+        BENCH.Begin("Physics")
+        Seq_Physics:Run(SLICE_KINEMATIC_START, Count_Kinematic[0], dt)
+        BENCH.End("Physics")
     end
 end
 
@@ -412,13 +428,15 @@ function love.draw()
     love.graphics.setColor(0, 1, 0, 1)
     if Font_UI then love.graphics.setFont(Font_UI) end
 
+    love.graphics.print(Cached_HUD_FPS, 20, 20)
+    love.graphics.print(Cached_HUD_Mem, 20, 40)
     -- New Frame Time HUD
-    love.graphics.print(string.format("FPS: %d  |  FRAME: %.2fms (Min: %.2fms / Max: %.2fms)", 
-        Display_FPS, Display_Avg, Display_Min, Display_Max), 20, 20)
+    -- love.graphics.print(string.format("FPS: %d  |  FRAME: %.2fms (Min: %.2fms / Max: %.2fms)", 
+        -- Display_FPS, Display_Avg, Display_Min, Display_Max), 20, 20)
 
     -- New Memory HUD (collectgarbage returns Kilobytes)
-    local mem_kb = collectgarbage("count")
-    love.graphics.print(string.format("LUA HEAP: %.2f MB", mem_kb / 1024), 20, 40)
+    -- local mem_kb = collectgarbage("count")
+    -- love.graphics.print(string.format("LUA HEAP: %.2f MB", mem_kb / 1024), 20, 40)
 
     -- Original Stats
     love.graphics.print("SLIDE: " .. (TargetSlide[0] + 1) .. " / " .. NumSlides[0], 20, 60)
