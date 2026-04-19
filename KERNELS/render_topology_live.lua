@@ -26,20 +26,18 @@ return function(MainCamera, ScreenPtr, ZBuffer)
         
         -- Knot Math (Directly sourced from proc_megaknot)
         local quOverP = Q * u / P
-        local r_knot = MAJOR_RADIUS * (2 + math_cos(quOverP))
-        local px = r_knot * math_cos(u)
-        local py = MAJOR_RADIUS * math_sin(quOverP)
-        local pz = r_knot * math_sin(u)
+-- 1. Shrink to Diagnostic Scale (Radius 200)
+    local r_knot = 200 * (2 + math_cos(quOverP))
+    local px = r_knot * math_cos(u)
+    local py = 200 * math_sin(quOverP)
+    local pz = r_knot * math_sin(u)
 
         -- This is where we "Live Rotate" without updating Obj_FWX arrays
         local yaw, pitch = active_time * 0.2, active_time * 0.1
         local cy, sy, cp, sp = math_cos(yaw), math_sin(yaw), math_cos(pitch), math_sin(pitch)
-        
-        -- Local to World (Simplification of your matrix math)
-        local wx = px * cy + pz * sy
-        local wy = py * cp - (pz * cy - px * sy) * sp
-        local wz = (pz * cy - px * sy) * cp + py * sp + 8000 -- Hardcoded Z depth
-
+    local wx = px * cy + pz * sy + MainCamera.x
+    local wy = py * cp - (pz * cy - px * sy) * sp + MainCamera.y
+    local wz = (pz * cy - px * sy) * cp + py * sp + MainCamera.z + 600
         -- World to Screen Projection
         local vdx, vdy, vdz = wx - MainCamera.x, wy - MainCamera.y, wz - MainCamera.z
         local cz = vdx * MainCamera.fwx + vdy * MainCamera.fwy + vdz * MainCamera.fwz
@@ -71,19 +69,20 @@ return function(MainCamera, ScreenPtr, ZBuffer)
 
                 if z1 and z2 and z3 then
                     -- Render Tri 1
-                    RasterizeTriangle(
-                        HALF_W + x1, HALF_H + y1, z1, 
-                        HALF_W + x2, HALF_H + y2, z2, 
-                        HALF_W + x4, HALF_H + y4, z4, 
-                        segment_color, CANVAS_W, CANVAS_H, ScreenPtr, ZBuffer
-                    )
-                    -- Render Tri 2
-                    RasterizeTriangle(
-                        HALF_W + x2, HALF_H + y2, z2, 
-                        HALF_W + x3, HALF_H + y3, z3, 
-                        HALF_W + x4, HALF_H + y4, z4, 
-                        segment_color, CANVAS_W, CANVAS_H, ScreenPtr, ZBuffer
-                    )
+-- Tri 1: CCW (1 -> 2 -> 4)
+RasterizeTriangle(
+    HALF_W + x1, HALF_H + y1, z1, 
+    HALF_W + x2, HALF_H + y2, z2, 
+    HALF_W + x4, HALF_H + y4, z4, 
+    segment_color, CANVAS_W, CANVAS_H, ScreenPtr, ZBuffer
+)
+-- Tri 2: CCW (2 -> 3 -> 4)
+RasterizeTriangle(
+    HALF_W + x2, HALF_H + y2, z2, 
+    HALF_W + x3, HALF_H + y3, z3, 
+    HALF_W + x4, HALF_H + y4, z4, 
+    segment_color, CANVAS_W, CANVAS_H, ScreenPtr, ZBuffer
+)
                 end
             end
         end
