@@ -9,9 +9,11 @@ local Routine_InitBuffers = require("ROUTINES.init_buffers")
 local Routine_BakeLighting = require("ROUTINES.bake_lighting")
 local Routine_BakeColors = require("ROUTINES.bake_colors")
 
+globalTimer = 0
+
 local Seq_Physics = CreateSequence()
-local Seq_Render  = CreateSequence()
-local Seq_Camera  = CreateSequence()
+local Seq_Render = CreateSequence()
+local Seq_Camera = CreateSequence()
 
 local ProcGen = require("MODULES.proc_gen")
 
@@ -21,12 +23,12 @@ local HUD_frames = 0
 local HUD_min_dt, HUD_max_dt, HUD_avg_dt = 999.0, 0.0, 0.0
 local Display_FPS, Display_Min, Display_Max, Display_Avg = 0, 0, 0, 0
 
-local Cached_HUD_FPS    = ""
-local Cached_HUD_Mem    = ""
-local Cached_HUD_Slide  = ""
-local Cached_HUD_State  = ""
+local Cached_HUD_FPS = ""
+local Cached_HUD_Mem = ""
+local Cached_HUD_Slide = ""
+local Cached_HUD_State = ""
 local Cached_HUD_Counts = ""
-local Cached_HUD_Cam    = ""
+local Cached_HUD_Cam = ""
 
 
 local function UpdateFreeflyCamera(dt)
@@ -68,86 +70,14 @@ local function BindRenderSequence()
     Seq_Render:Slot(7, "KERNELS.render_rasterize_baked", Visible_Procedural_IDs, Count_Visible_Procedural, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ, Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount, Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B, MainCamera, ScreenPtr, ZBuffer)
 
     -- RASTERIZE (DYNAMIC): Slot 4 (Kinematic Props - Cubes/Pyramids)
-    -- This was the "missing" kernel you mentioned!
-    Seq_Render:Slot(4, "KERNELS.render_rasterize_dynamic", Visible_Kinematic_IDs, Count_Visible_Kinematic, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ, Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount, Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B, MainCamera, ScreenPtr, ZBuffer)
+    -- commented out to see whats going on
+    --    Seq_Render:Slot(4, "KERNELS.render_rasterize_dynamic", Visible_Kinematic_IDs, Count_Visible_Kinematic, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ, Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount, Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B, MainCamera, ScreenPtr, ZBuffer)
 
     -- LIVE TOPOLOGY: Slot 9 (The Megaknot ghost)
     Seq_Render:Slot(9, "KERNELS.render_topology_live", MainCamera, ScreenPtr, ZBuffer)
 
     -- OVERLAYS: Slot 5 (The Slide Text)
     Seq_Render:Slot(5, "KERNELS.render_text_stamp", SlideTitles, ActiveSlide, EngineState, Slide_X, Slide_Y, Slide_Z, Slide_NX, Slide_NY, Slide_NZ, MainCamera, ScreenPtr, ZBuffer)
-end
-
-local function HEISENBUG_BindRenderSequence()
-    -- ==========================================
-    -- CULLING PASS
-    -- ==========================================
-    Seq_Render:Slot(1, "KERNELS.camera_cull",
-        Visible_Solid_IDs, Count_Visible_Solid,       -- 1. Integration Pointers
-        Obj_X, Obj_Y, Obj_Z, Obj_Radius,              -- 2. Object Bounds
-        MainCamera                                    -- 3. System
-    )
-
-    Seq_Render:Slot(2, "KERNELS.camera_cull",
-        Visible_Kinematic_IDs, Count_Visible_Kinematic, 
-        Obj_X, Obj_Y, Obj_Z, Obj_Radius, 
-        MainCamera
-    )
-
-    Seq_Render:Slot(6, "KERNELS.camera_cull",
-        Visible_Procedural_IDs, Count_Visible_Procedural, 
-        Obj_X, Obj_Y, Obj_Z, Obj_Radius, 
-        MainCamera
-    )
-
-    -- ==========================================
-    -- RASTERIZATION PASS
-    -- ==========================================
-    Seq_Render:Slot(3, "KERNELS.render_rasterize_baked",
-        Visible_Solid_IDs, Count_Visible_Solid,                                       -- 1. Visibility
-        Obj_X, Obj_Y, Obj_Z,                                                          -- 2. Positions
-        Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ,       -- 3. Matrices
-        Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount,                     -- 4. Offsets
-        Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid,
-        Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B,
-        MainCamera, ScreenPtr, ZBuffer
-    )
-
-    Seq_Render:Slot(4, "KERNELS.render_rasterize_dynamic",
-        Visible_Kinematic_IDs, Count_Visible_Kinematic,
-        Obj_X, Obj_Y, Obj_Z,
-        Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ,
-        Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount,
-        Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid,
-        Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B,
-        MainCamera, ScreenPtr, ZBuffer
-    )
-
-    Seq_Render:Slot(7, "KERNELS.render_rasterize_baked",
-        Visible_Procedural_IDs, Count_Visible_Procedural,
-        Obj_X, Obj_Y, Obj_Z,
-        Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ,
-        Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount,
-        Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid,
-        Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B,
-        MainCamera, ScreenPtr, ZBuffer
-    )
-
-    -- ==========================================
-    -- FUSED LIVE TOPOLOGY (Slot 9)
-    -- ==========================================
-    Seq_Render:Slot(9, "KERNELS.render_topology_live",
-        MainCamera, ScreenPtr, ZBuffer                -- 1. System Pointers
-    )
-
-    -- ==========================================
-    -- TEXT STAMP PASS (Slot 5)
-    -- ==========================================
-    Seq_Render:Slot(5, "KERNELS.render_text_stamp",
-        SlideTitles, ActiveSlide, EngineState,
-        Slide_X, Slide_Y, Slide_Z, Slide_NX, Slide_NY, Slide_NZ,
-        MainCamera, ScreenPtr, ZBuffer
-    )
 end
 
 function love.load()
@@ -265,7 +195,7 @@ function love.draw()
         -- RASTERIZE SEQUENCE
         if Count_Solid[0] > 0      then Seq_Render.Kernels[3](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
         if Count_Procedural[0] > 0 then Seq_Render.Kernels[7](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
-        if Count_Kinematic[0] > 0  then Seq_Render.Kernels[4](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end -- THE DYNAMIC SLOT
+--        if Count_Kinematic[0] > 0  then Seq_Render.Kernels[4](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end -- THE DYNAMIC SLOT
 
         -- LIVE MEGAKNOT (Surgical Addition)
         Seq_Render.Kernels[9](CANVAS_W, CANVAS_H, HALF_W, HALF_H, globalTimer, 0, 400)

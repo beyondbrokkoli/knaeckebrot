@@ -91,7 +91,7 @@ function Presentation.Load(num_slides)
 
         Factory.CreateSlideMesh(SLICE_SOLID_START, SLICE_SOLID_MAX, Count_Solid, sx, sy, sz, yaw, pitch, 1600, 900, 40, color)
 
-        manifest[i] = {
+        manifest[i+1] = {
             title = "SPIRAL ASCENT: LEVEL " .. string.format("%02d", i + 1),
             content = {
                 "~ \27[36mTELEMETRY:\27[0m X:" .. math.floor(sx) .. " | Y:" .. math.floor(sy) .. " | Z:" .. math.floor(sz),
