@@ -100,7 +100,7 @@ function love.load()
         Count_BoundBox, BoundBox_X, BoundBox_Y, BoundBox_Z, BoundBox_HW, BoundBox_HH, BoundBox_HT,
         BoundBox_FWX, BoundBox_FWY, BoundBox_FWZ, BoundBox_RTX, BoundBox_RTY, BoundBox_RTZ, BoundBox_UPX, BoundBox_UPY, BoundBox_UPZ, BoundBox_Mode
     )
-    Seq_Procedural:Slot(1, "KERNELS.proc_megaknot",
+    Seq_Procedural:Slot(1, "KERNELS.proc_nokia_snake",
         SLICE_PROCEDURAL_START, 100, Count_Procedural,
         Obj_X, Obj_Y, Obj_Z, Obj_Radius,
         Obj_FWX, Obj_FWY, Obj_FWZ, Obj_RTX, Obj_RTY, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ,
