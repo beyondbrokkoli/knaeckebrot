@@ -4,14 +4,14 @@ local RasterizeTriangle = require("MODULES.rasterize_triangle")
 
 return function(
     -- [4] Pipeline
-    Visible_IDs, Count_Visible, 
+    Visible_IDs, Count_Visible,
     -- [5] Object SoA
-    Obj_X, Obj_Y, Obj_Z, 
-    Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ, 
+    Obj_X, Obj_Y, Obj_Z,
+    Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ,
     -- [6] Geometry SoA
-    Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount, 
-    Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, 
-    Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B, 
+    Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount,
+    Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid,
+    Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B,
     -- [8] Singletons & Render Targets
     MainCamera, ScreenPtr, ZBuffer
 )
@@ -59,6 +59,7 @@ return function(
                     local px3, py3, pz3 = Vert_PX[i3], Vert_PY[i3], Vert_PZ[i3]
 
                     if (px2-px1)*(py3-py1) - (py2-py1)*(px3-px1) < 0 then
+
                         local wx1, wy1, wz1 = Vert_CX[i1], Vert_CY[i1], Vert_CZ[i1]
                         local wx2, wy2, wz2 = Vert_CX[i2], Vert_CY[i2], Vert_CZ[i2]
                         local wx3, wy3, wz3 = Vert_CX[i3], Vert_CY[i3], Vert_CZ[i3]
@@ -67,10 +68,19 @@ return function(
                         local ny = (wz1-wz2)*(wx1-wx3) - (wx1-wx2)*(wz1-wz3)
                         local nz = (wx1-wx2)*(wy1-wy3) - (wy1-wy2)*(wx1-wx3)
 
-                        local len = sqrt(nx*nx + ny*ny + nz*nz); if len == 0 then len = 1 end
-                        local final_light = max(0.2, min(1.0, (nx*0.5 + ny*1.0 + nz*0.5) / len))
+                        -- FLIP THE NORMALS for LÖVE2D coordinate space!
+                        nx, ny, nz = -nx, -ny, -nz
 
-                        -- NO BIT SHIFTING UNPACKING. READ FROM SOA.
+                        local len = sqrt(nx*nx + ny*ny + nz*nz); if len == 0 then len = 1 end
+
+                        -- Define the exact same light vector as the baker: (0.5, 1.0, 0.5)
+                        local lx, ly, lz = 0.5, 1.0, 0.5
+                        local l_len = sqrt(lx*lx + ly*ly + lz*lz)
+                        lx, ly, lz = lx/l_len, ly/l_len, lz/l_len
+
+                        local final_light = max(0.2, min(1.0, (nx*lx + ny*ly + nz*lz) / len))
+
+                        -- Read from SoA and apply shading
                         local a = Tri_A[idx]
                         local b = min(255, Tri_B[idx] * final_light)
                         local g = min(255, Tri_G[idx] * final_light)
