@@ -57,8 +57,28 @@ function UpdateCameraBasis()
     MainCamera.upy = MainCamera.fwz * MainCamera.rtx - MainCamera.fwx * MainCamera.rtz
     MainCamera.upz = -MainCamera.fwy * MainCamera.rtx
 end
-
 local function BindRenderSequence()
+    -- CULLING: Slots 1, 2, 6 (Solids, Kinematics, Procedural Tiles)
+    Seq_Render:Slot(1, "KERNELS.camera_cull", Visible_Solid_IDs, Count_Visible_Solid, Obj_X, Obj_Y, Obj_Z, Obj_Radius, MainCamera)
+    Seq_Render:Slot(2, "KERNELS.camera_cull", Visible_Kinematic_IDs, Count_Visible_Kinematic, Obj_X, Obj_Y, Obj_Z, Obj_Radius, MainCamera)
+    Seq_Render:Slot(6, "KERNELS.camera_cull", Visible_Procedural_IDs, Count_Visible_Procedural, Obj_X, Obj_Y, Obj_Z, Obj_Radius, MainCamera)
+
+    -- RASTERIZE (BAKED): Slots 3, 7 (Slides and Floor Tiles)
+    Seq_Render:Slot(3, "KERNELS.render_rasterize_baked", Visible_Solid_IDs, Count_Visible_Solid, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ, Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount, Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B, MainCamera, ScreenPtr, ZBuffer)
+    Seq_Render:Slot(7, "KERNELS.render_rasterize_baked", Visible_Procedural_IDs, Count_Visible_Procedural, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ, Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount, Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B, MainCamera, ScreenPtr, ZBuffer)
+
+    -- RASTERIZE (DYNAMIC): Slot 4 (Kinematic Props - Cubes/Pyramids)
+    -- This was the "missing" kernel you mentioned!
+    Seq_Render:Slot(4, "KERNELS.render_rasterize_dynamic", Visible_Kinematic_IDs, Count_Visible_Kinematic, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ, Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount, Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B, MainCamera, ScreenPtr, ZBuffer)
+
+    -- LIVE TOPOLOGY: Slot 9 (The Megaknot ghost)
+    Seq_Render:Slot(9, "KERNELS.render_topology_live", MainCamera, ScreenPtr, ZBuffer)
+
+    -- OVERLAYS: Slot 5 (The Slide Text)
+    Seq_Render:Slot(5, "KERNELS.render_text_stamp", SlideTitles, ActiveSlide, EngineState, Slide_X, Slide_Y, Slide_Z, Slide_NX, Slide_NY, Slide_NZ, MainCamera, ScreenPtr, ZBuffer)
+end
+
+local function HEISENBUG_BindRenderSequence()
     -- ==========================================
     -- CULLING PASS
     -- ==========================================
@@ -238,27 +258,24 @@ function love.draw()
         BENCH.End("Camera_Cull")
 
 
-        love.graphics.setColor(1, 1, 1, 1)
         BENCH.Begin("Rasterize")
         ffi.fill(ScreenPtr, CANVAS_W * CANVAS_H * 4, 0)
         ffi.fill(ZBuffer, CANVAS_W * CANVAS_H * 4, 0x7F)
 
+        -- RASTERIZE SEQUENCE
         if Count_Solid[0] > 0      then Seq_Render.Kernels[3](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
         if Count_Procedural[0] > 0 then Seq_Render.Kernels[7](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
-        if Count_Kinematic[0] > 0  then Seq_Render.Kernels[4](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
+        if Count_Kinematic[0] > 0  then Seq_Render.Kernels[4](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end -- THE DYNAMIC SLOT
 
-        -- LIVE TOPOLOGY RENDER (Slot 9)
-        -- window_offset: 0, window_size: 400 (The whole knot)
+        -- LIVE MEGAKNOT (Surgical Addition)
         Seq_Render.Kernels[9](CANVAS_W, CANVAS_H, HALF_W, HALF_H, globalTimer, 0, 400)
-        BENCH.End("Rasterize")
 
-        BENCH.Begin("Text_Stamp")
+        -- TEXT OVERLAY
         if Seq_Render.Kernels[5] then Seq_Render.Kernels[5](CANVAS_W, CANVAS_H, HALF_W, HALF_H, MasterTextAlpha) end
-        BENCH.End("Text_Stamp")
 
         ScreenImage:replacePixels(ScreenBuffer)
     end
-
+    love.graphics.setColor(1, 1, 1, 1)
     love.graphics.setBlendMode("replace")
     love.graphics.draw(ScreenImage, 0, 0)
     love.graphics.setBlendMode("alpha")

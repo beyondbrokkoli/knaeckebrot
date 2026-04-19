@@ -26,9 +26,9 @@ return function(MainCamera, ScreenPtr, ZBuffer)
         
         -- Knot Math (Directly sourced from proc_megaknot)
         local quOverP = Q * u / P
-        local r_knot = MAJOR_RADIUS * (2 + math_cos(quOverP)) * 0.3
+        local r_knot = MAJOR_RADIUS * (2 + math_cos(quOverP))
         local px = r_knot * math_cos(u)
-        local py = MAJOR_RADIUS * math_sin(quOverP) * 0.3
+        local py = MAJOR_RADIUS * math_sin(quOverP)
         local pz = r_knot * math_sin(u)
 
         -- This is where we "Live Rotate" without updating Obj_FWX arrays
@@ -38,7 +38,7 @@ return function(MainCamera, ScreenPtr, ZBuffer)
         -- Local to World (Simplification of your matrix math)
         local wx = px * cy + pz * sy
         local wy = py * cp - (pz * cy - px * sy) * sp
-        local wz = (pz * cy - px * sy) * cp + py * sp - 25000 -- Hardcoded Z depth
+        local wz = (pz * cy - px * sy) * cp + py * sp + 8000 -- Hardcoded Z depth
 
         -- World to Screen Projection
         local vdx, vdy, vdz = wx - MainCamera.x, wy - MainCamera.y, wz - MainCamera.z

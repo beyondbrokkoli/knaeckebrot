@@ -62,9 +62,10 @@ local function copy_file(src, dest)
 end
 local process_manifest = {
 --    ["KERNELS/proc_megaknot.lua"] = "BUILD/KERNELS/proc_megaknot.lua",
---    ["sys_sequence.lua"] = "BUILD/sys_sequence.lua",
+    ["sys_sequence.lua"] = "BUILD/sys_sequence.lua",
     ["main.lua"] = "BUILD/main.lua",
-
+    ["KERNELS/render_topology_live.lua"] = "BUILD/KERNELS/render_topology_live.lua",
+    ["KERNELS/render_rasterize_dynamic.lua"] = "BUILD/KERNELS/render_rasterize_dynamic.lua",
 }
 local OLD_process_manifest = {
     ["sys_memory.lua"] = "BUILD/sys_memory.lua",
@@ -89,7 +90,7 @@ local OLD_process_manifest = {
     ["MODULES/state.lua"] = "BUILD/MODULES/state.lua",
     ["MODULES/presentation.lua"] = "BUILD/MODULES/presentation.lua",
     ["KERNELS/proc_treadmill.lua"] = "BUILD/KERNELS/proc_treadmill.lua",
-    ["KERNELS/proc_megaknot.lua"] = "BUILD/KERNELS/proc_megaknot.lua",
+
     ["MODULES/proc_gen.lua"] = "BUILD/MODULES/proc_gen.lua",
     ["main.lua"] = "BUILD/main.lua",
     ["conf.lua"] = "BUILD/conf.lua",
