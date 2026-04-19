@@ -93,6 +93,12 @@ local function BindRenderSequence()
         MainCamera, ScreenPtr, ZBuffer                                                -- 7. System Singletons
     )
 
+    -- Culling
+    Seq_Render:Slot(8, "KERNELS.camera_cull", Visible_Autonomous_IDs, Count_Visible_Autonomous, Obj_X, Obj_Y, Obj_Z, Obj_Radius, MainCamera)
+
+    -- Rasterize
+    Seq_Render:Slot(9, "KERNELS.render_rasterize_baked", Visible_Autonomous_IDs, Count_Visible_Autonomous, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ, Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount, Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B, MainCamera, ScreenPtr, ZBuffer)
+
     -- ==========================================
     -- TEXT STAMP PASS (Slot 5)
     -- ==========================================
@@ -129,6 +135,14 @@ function love.load()
         Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount,
         Vert_LX, Vert_LY, Vert_LZ, Tri_V1, Tri_V2, Tri_V3, Tri_BakedColor,
         NumTotalVerts, NumTotalTris, MainCamera, EngineState, TargetState
+    )
+    Seq_Physics:Slot(3, "KERNELS.proc_megaknot",
+        SLICE_AUTONOMOUS_START, Count_Autonomous,
+        Obj_X, Obj_Y, Obj_Z, Obj_Radius,
+        Obj_FWX, Obj_FWY, Obj_FWZ, Obj_RTX, Obj_RTY, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ,
+        Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount,
+        Vert_LX, Vert_LY, Vert_LZ, Tri_V1, Tri_V2, Tri_V3, Tri_BakedColor,
+        NumTotalVerts, NumTotalTris
     )
     Seq_Camera:Slot(1, "KERNELS.camera_flight", MainCamera, FlightData, EngineState, TargetState, STATE_CINEMATIC)
     BindRenderSequence()
@@ -214,6 +228,13 @@ function love.update(dt)
         BENCH.Begin("Physics")
         Seq_Physics:Run(SLICE_KINEMATIC_START, Count_Kinematic[0], dt)
         BENCH.End("Physics")
+
+        if Seq_Physics.Kernels[3] then
+            BENCH.Begin("Megaknot")
+            Seq_Physics.Kernels[3](dt)
+            BENCH.End("Megaknot")
+        end
+
     end
 end
 
@@ -234,6 +255,7 @@ function love.draw()
         if Count_Solid[0] > 0 then Seq_Render.Kernels[1](SLICE_SOLID_START, Count_Solid[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
         if Count_Kinematic[0] > 0 then Seq_Render.Kernels[2](SLICE_KINEMATIC_START, Count_Kinematic[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
         if Count_Procedural[0] > 0 then Seq_Render.Kernels[6](SLICE_PROCEDURAL_START, Count_Procedural[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
+        if Count_Autonomous[0] > 0 then Seq_Render.Kernels[8](SLICE_AUTONOMOUS_START, Count_Autonomous[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
         BENCH.End("Camera_Cull")
 
         BENCH.Begin("Rasterize")
@@ -243,6 +265,7 @@ function love.draw()
 
         if Count_Solid[0] > 0 then Seq_Render.Kernels[3](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
         if Count_Procedural[0] > 0 then Seq_Render.Kernels[7](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
+        if Count_Autonomous[0] > 0 then Seq_Render.Kernels[9](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
         if Count_Kinematic[0] > 0 then Seq_Render.Kernels[4](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
         BENCH.End("Rasterize")
 
