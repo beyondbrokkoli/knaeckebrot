@@ -72,7 +72,7 @@ local function BindRenderSequence()
 
     -- RASTERIZE (DYNAMIC): Slot 4 (Kinematic Props - Cubes/Pyramids)
     -- commented out to see whats going on
-    Seq_Render:Slot(4, "KERNELS.render_rasterize_dynamic", Visible_Kinematic_IDs, Count_Visible_Kinematic, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ, Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount, Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B, MainCamera, ScreenPtr, ZBuffer)
+    -- Seq_Render:Slot(4, "KERNELS.render_rasterize_dynamic", Visible_Kinematic_IDs, Count_Visible_Kinematic, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ, Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount, Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B, MainCamera, ScreenPtr, ZBuffer)
 
     -- LIVE TOPOLOGY: Slot 9 (The Megaknot ghost)
     -- Seq_Render:Slot(9, "KERNELS.render_topology_live", MainCamera, ScreenPtr, ZBuffer)
@@ -91,15 +91,15 @@ function love.load()
     UpdateCameraBasis()
 
     -- Physics Sequence (Megaknot Removed - It's Live now)
-    Seq_Physics:Slot(1, "KERNELS.phys_kinematics",
-        Obj_X, Obj_Y, Obj_Z, Obj_VelX, Obj_VelY, Obj_VelZ,
-        Obj_Yaw, Obj_Pitch, Obj_RotSpeedYaw, Obj_RotSpeedPitch,
-        Obj_FWX, Obj_FWY, Obj_FWZ, Obj_RTX, Obj_RTY, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ,
-        UniverseCage,
-        Count_BoundSphere, BoundSphere_X, BoundSphere_Y, BoundSphere_Z, BoundSphere_RSq, BoundSphere_Mode,
-        Count_BoundBox, BoundBox_X, BoundBox_Y, BoundBox_Z, BoundBox_HW, BoundBox_HH, BoundBox_HT,
-        BoundBox_FWX, BoundBox_FWY, BoundBox_FWZ, BoundBox_RTX, BoundBox_RTY, BoundBox_RTZ, BoundBox_UPX, BoundBox_UPY, BoundBox_UPZ, BoundBox_Mode
-    )
+--    Seq_Physics:Slot(1, "KERNELS.phys_kinematics",
+--        Obj_X, Obj_Y, Obj_Z, Obj_VelX, Obj_VelY, Obj_VelZ,
+--        Obj_Yaw, Obj_Pitch, Obj_RotSpeedYaw, Obj_RotSpeedPitch,
+--        Obj_FWX, Obj_FWY, Obj_FWZ, Obj_RTX, Obj_RTY, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ,
+--        UniverseCage,
+--        Count_BoundSphere, BoundSphere_X, BoundSphere_Y, BoundSphere_Z, BoundSphere_RSq, BoundSphere_Mode,
+--        Count_BoundBox, BoundBox_X, BoundBox_Y, BoundBox_Z, BoundBox_HW, BoundBox_HH, BoundBox_HT,
+--        BoundBox_FWX, BoundBox_FWY, BoundBox_FWZ, BoundBox_RTX, BoundBox_RTY, BoundBox_RTZ, BoundBox_UPX, BoundBox_UPY, BoundBox_UPZ, BoundBox_Mode
+--    )
     Seq_Procedural:Slot(1, "KERNELS.proc_nokia_snake",
         SLICE_PROCEDURAL_START, 100, Count_Procedural,
         Obj_X, Obj_Y, Obj_Z, Obj_Radius,
@@ -117,11 +117,12 @@ function love.load()
     if NumTotalTris[0] > 0 then Routine_BakeColors(NumTotalTris[0]) end
 
     State.SetEngine(STATE_FREEFLY)
+    ProcGen.TriggerOverview()
 end
 
 function love.update(dt)
     globalTimer = globalTimer + dt
-    
+
     -- Telemetry Processing
     local ms = dt * 1000
     if ms < HUD_min_dt then HUD_min_dt = ms end
@@ -159,11 +160,11 @@ function love.update(dt)
     if EngineState[STATE_FREEFLY] then UpdateFreeflyCamera(dt) end
     Seq_Camera:Run(dt)
     Presentation.Update(dt)
-
+    ProcGen.Update(dt) -- <== ADD THIS LINE HERE!
     if not EngineState[STATE_ZEN] and not EngineState[STATE_HIBERNATED] then
-        BENCH.Begin("Physics")
-        Seq_Physics:Run(SLICE_KINEMATIC_START, Count_Kinematic[0], dt)
-        BENCH.End("Physics")
+        --BENCH.Begin("Physics")
+        --Seq_Physics:Run(SLICE_KINEMATIC_START, Count_Kinematic[0], dt)
+        --BENCH.End("Physics")
         -- Run our background builder!
         Seq_Procedural:Run(dt)
 
@@ -185,7 +186,7 @@ function love.draw()
 
         BENCH.Begin("Camera_Cull")
         if Count_Solid[0] > 0      then Seq_Render.Kernels[1](SLICE_SOLID_START, Count_Solid[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
-        if Count_Kinematic[0] > 0  then Seq_Render.Kernels[2](SLICE_KINEMATIC_START, Count_Kinematic[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
+        --if Count_Kinematic[0] > 0  then Seq_Render.Kernels[2](SLICE_KINEMATIC_START, Count_Kinematic[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
         if Count_Procedural[0] > 0 then Seq_Render.Kernels[6](SLICE_PROCEDURAL_START, Count_Procedural[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
         BENCH.End("Camera_Cull")
 
