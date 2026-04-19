@@ -323,16 +323,17 @@ function love.update(dt)
         Display_Max = HUD_max_dt
         Display_Avg = HUD_avg_dt / HUD_frames
 
-        -- Reset the rolling windows!
         HUD_min_dt, HUD_max_dt, HUD_avg_dt = 999.0, 0.0, 0.0
         HUD_frames = 0
         HUD_timer = 0
 
-        Cached_HUD_FPS = string.format("FPS: %d  |  FRAME: %.2fms (Min: %.2fms / Max: %.2fms)", 
-        Display_FPS, Display_Avg, Display_Min, Display_Max)
+        -- 100% of String Allocations now happen exactly once per second
+        Cached_HUD_FPS = string.format("FPS: %d | FRAME: %.2fms (Min: %.2fms / Max: %.2fms)", Display_FPS, Display_Avg, Display_Min, Display_Max)
         Cached_HUD_Mem = string.format("LUA HEAP: %.2f MB", collectgarbage("count") / 1024)
+        Cached_HUD_Slide = "SLIDE: " .. (TargetSlide[0] + 1) .. " / " .. NumSlides[0]
+        Cached_HUD_State = "STATE: " .. EngineStateNames[EngineState[0] + 1]
+        Cached_HUD_Counts = "SOLIDS: " .. Count_Solid[0] .. " | KINEMATICS: " .. Count_Kinematic[0]
 
-        -- Optionally reset BENCH min/max here too so they are also rolling
         BENCH.ResetRollingStats()
     end
     dt = math.min(dt, 0.033)
@@ -398,24 +399,26 @@ function love.draw()
         Count_Visible_Solid[0] = 0
         Count_Visible_Kinematic[0] = 0
 
-        BENCH.Run("Camera_Cull", function()
-            if Count_Solid[0] > 0 then Seq_Render.Kernels[1](SLICE_SOLID_START, Count_Solid[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
-            if Count_Kinematic[0] > 0 then Seq_Render.Kernels[2](SLICE_KINEMATIC_START, Count_Kinematic[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
-        end)
+        -- 1. CAMERA CULL (Zero Allocation)
+        BENCH.Begin("Camera_Cull")
+        if Count_Solid[0] > 0 then Seq_Render.Kernels[1](SLICE_SOLID_START, Count_Solid[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
+        if Count_Kinematic[0] > 0 then Seq_Render.Kernels[2](SLICE_KINEMATIC_START, Count_Kinematic[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
+        BENCH.End("Camera_Cull")
 
-        BENCH.Run("Rasterize", function()
-            -- Clear the screen ONE time, before both kernels run!
-            local total_pixels = CANVAS_W * CANVAS_H
-            ffi.fill(ScreenPtr, total_pixels * 4, 0)
-            ffi.fill(ZBuffer, total_pixels * 4, 0x7F)
+        -- 2. RASTERIZE (Zero Allocation)
+        BENCH.Begin("Rasterize")
+        local total_pixels = CANVAS_W * CANVAS_H
+        ffi.fill(ScreenPtr, total_pixels * 4, 0)
+        ffi.fill(ZBuffer, total_pixels * 4, 0x7F)
 
-            if Count_Solid[0] > 0 then Seq_Render.Kernels[3](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
-            if Count_Kinematic[0] > 0 then Seq_Render.Kernels[4](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
-        end)
+        if Count_Solid[0] > 0 then Seq_Render.Kernels[3](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
+        if Count_Kinematic[0] > 0 then Seq_Render.Kernels[4](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
+        BENCH.End("Rasterize")
 
-        BENCH.Run("Text_Stamp", function()
-            if Seq_Render.Kernels[5] then Seq_Render.Kernels[5](CANVAS_W, CANVAS_H, HALF_W, HALF_H, MasterTextAlpha) end
-        end)
+        -- 3. TEXT STAMP (Zero Allocation)
+        BENCH.Begin("Text_Stamp")
+        if Seq_Render.Kernels[5] then Seq_Render.Kernels[5](CANVAS_W, CANVAS_H, HALF_W, HALF_H, MasterTextAlpha) end
+        BENCH.End("Text_Stamp")
 
         ScreenImage:replacePixels(ScreenBuffer)
     end
@@ -428,22 +431,12 @@ function love.draw()
     love.graphics.setColor(0, 1, 0, 1)
     if Font_UI then love.graphics.setFont(Font_UI) end
 
+    -- Draw the pre-calculated string cache (Zero Allocation)
     love.graphics.print(Cached_HUD_FPS, 20, 20)
     love.graphics.print(Cached_HUD_Mem, 20, 40)
-    -- New Frame Time HUD
-    -- love.graphics.print(string.format("FPS: %d  |  FRAME: %.2fms (Min: %.2fms / Max: %.2fms)", 
-        -- Display_FPS, Display_Avg, Display_Min, Display_Max), 20, 20)
-
-    -- New Memory HUD (collectgarbage returns Kilobytes)
-    -- local mem_kb = collectgarbage("count")
-    -- love.graphics.print(string.format("LUA HEAP: %.2f MB", mem_kb / 1024), 20, 40)
-
-    -- Original Stats
-    love.graphics.print("SLIDE: " .. (TargetSlide[0] + 1) .. " / " .. NumSlides[0], 20, 60)
-
-    local stateNames = {"FREEFLY", "CINEMATIC", "PRESENT", "ZEN", "HIBERNATED"}
-    love.graphics.print("STATE: " .. stateNames[EngineState[0] + 1], 20, 80)
-    love.graphics.print("SOLIDS: " .. Count_Solid[0] .. " | KINEMATICS: " .. Count_Kinematic[0], 20, 100)
+    love.graphics.print(Cached_HUD_Slide, 20, 60)
+    love.graphics.print(Cached_HUD_State, 20, 80)
+    love.graphics.print(Cached_HUD_Counts, 20, 100)
 
     love.graphics.setColor(1, 1, 1, 1)
 
