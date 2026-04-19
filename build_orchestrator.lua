@@ -63,31 +63,31 @@ end
 
 local process_manifest = {
     ["sys_memory.lua"] = "BUILD/sys_memory.lua",
---    ["sys_factory.lua"] = "BUILD/sys_factory.lua",
---    ["sys_sequence.lua"] = "BUILD/sys_sequence.lua",
---    ["KERNELS/camera_flight.lua"] = "BUILD/KERNELS/camera_flight.lua",
---    ["KERNELS/camera_cull.lua"] = "BUILD/KERNELS/camera_cull.lua",
---    ["KERNELS/render_rasterize_baked.lua"] = "BUILD/KERNELS/render_rasterize_baked.lua",
---    ["KERNELS/render_rasterize_dynamic.lua"] = "BUILD/KERNELS/render_rasterize_dynamic.lua",
---    ["KERNELS/render_rasterize_dynamic_fog.lua"] = "BUILD/KERNELS/render_rasterize_dynamic_fog.lua",
---    ["KERNELS/phys_kinematics.lua"] = "BUILD/KERNELS/phys_kinematics.lua",
---    ["KERNELS/render_text_stamp.lua"] = "BUILD/KERNELS/render_text_stamp.lua",
---    ["ROUTINES/init_buffers.lua"] = "BUILD/ROUTINES/init_buffers.lua",
---    ["ROUTINES/init_slide_text.lua"] = "BUILD/ROUTINES/init_slide_text.lua",
---    ["ROUTINES/bake_lighting.lua"] = "BUILD/ROUTINES/bake_lighting.lua",
---    ["ROUTINES/bake_colors.lua"] = "BUILD/ROUTINES/bake_colors.lua",
---    ["MODULES/text_anchor.lua"] = "BUILD/MODULES/text_anchor.lua",
---    ["MODULES/text_lexer.lua"] = "BUILD/MODULES/text_lexer.lua",
---    ["MODULES/text_math.lua"] = "BUILD/MODULES/text_math.lua",
---    ["MODULES/text_baker.lua"] = "BUILD/MODULES/text_baker.lua",
---    ["MODULES/rasterize_triangle.lua"] = "BUILD/MODULES/rasterize_triangle.lua",
---    ["MODULES/state.lua"] = "BUILD/MODULES/state.lua",
---    ["MODULES/presentation.lua"] = "BUILD/MODULES/presentation.lua",
---    ["KERNELS/proc_treadmill.lua"] = "BUILD/KERNELS/proc_treadmill.lua",
---    ["MODULES/proc_gen.lua"] = "BUILD/MODULES/proc_gen.lua",
+    ["sys_factory.lua"] = "BUILD/sys_factory.lua",
+    ["sys_sequence.lua"] = "BUILD/sys_sequence.lua",
+    ["KERNELS/camera_flight.lua"] = "BUILD/KERNELS/camera_flight.lua",
+    ["KERNELS/camera_cull.lua"] = "BUILD/KERNELS/camera_cull.lua",
+    ["KERNELS/render_rasterize_baked.lua"] = "BUILD/KERNELS/render_rasterize_baked.lua",
+    ["KERNELS/render_rasterize_dynamic.lua"] = "BUILD/KERNELS/render_rasterize_dynamic.lua",
+    ["KERNELS/render_rasterize_dynamic_fog.lua"] = "BUILD/KERNELS/render_rasterize_dynamic_fog.lua",
+    ["KERNELS/phys_kinematics.lua"] = "BUILD/KERNELS/phys_kinematics.lua",
+    ["KERNELS/render_text_stamp.lua"] = "BUILD/KERNELS/render_text_stamp.lua",
+    ["ROUTINES/init_buffers.lua"] = "BUILD/ROUTINES/init_buffers.lua",
+    ["ROUTINES/init_slide_text.lua"] = "BUILD/ROUTINES/init_slide_text.lua",
+    ["ROUTINES/bake_lighting.lua"] = "BUILD/ROUTINES/bake_lighting.lua",
+    ["ROUTINES/bake_colors.lua"] = "BUILD/ROUTINES/bake_colors.lua",
+    ["MODULES/text_anchor.lua"] = "BUILD/MODULES/text_anchor.lua",
+    ["MODULES/text_lexer.lua"] = "BUILD/MODULES/text_lexer.lua",
+    ["MODULES/text_math.lua"] = "BUILD/MODULES/text_math.lua",
+    ["MODULES/text_baker.lua"] = "BUILD/MODULES/text_baker.lua",
+    ["MODULES/rasterize_triangle.lua"] = "BUILD/MODULES/rasterize_triangle.lua",
+    ["MODULES/state.lua"] = "BUILD/MODULES/state.lua",
+    ["MODULES/presentation.lua"] = "BUILD/MODULES/presentation.lua",
+    ["KERNELS/proc_treadmill.lua"] = "BUILD/KERNELS/proc_treadmill.lua",
+    ["MODULES/proc_gen.lua"] = "BUILD/MODULES/proc_gen.lua",
     ["main.lua"] = "BUILD/main.lua",
---    ["conf.lua"] = "BUILD/conf.lua",
---    ["MODULES/bench.lua"] = "BUILD/MODULES/bench.lua",
+    ["conf.lua"] = "BUILD/conf.lua",
+    ["MODULES/bench.lua"] = "BUILD/MODULES/bench.lua",
 }
 local raw_manifest = {} -- now empty because we broke free from json chains
 local function setup_build_dir(dir)
@@ -100,6 +100,38 @@ local function setup_build_dir(dir)
     return os.execute("mkdir -p " .. dir)
 end
 local function get_sorted_files()
+    local sorted = {}
+    local visited = {}
+
+    local function visit(file)
+        if visited[file] then return end
+        visited[file] = true
+
+        local f = io.open(file, "r")
+        if f then
+            local content = f:read("*all")
+            f:close()
+            for dep_match in content:gmatch('require%s*%(?%s*["\'](.-)["\']%s*%)?') do
+
+                -- NEW: Convert Lua's module dot notation to file path slashes!
+                -- e.g., "MODULES.presentation" -> "MODULES/presentation"
+                local dep_name = dep_match:gsub("%.", "/")
+
+                if not dep_name:find("%.lua$") then
+                    dep_name = dep_name .. ".lua"
+                end
+                if process_manifest[dep_name] then
+                    visit(dep_name)
+                end
+            end
+        end
+        table.insert(sorted, file)
+    end
+
+    for file in pairs(process_manifest) do visit(file) end
+    return sorted
+end
+local function OLD_get_sorted_files()
     local sorted = {}
     local visited = {}
     local function visit(file)
