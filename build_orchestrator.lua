@@ -81,6 +81,7 @@ local process_manifest = {
     ["MODULES/text_math.lua"] = "BUILD/MODULES/text_math.lua",
     ["MODULES/text_baker.lua"] = "BUILD/MODULES/text_baker.lua",
 --    ["MODULES/rasterize_triangle.lua"] = "BUILD/MODULES/rasterize_triangle.lua",
+    ["MODULES/state.lua"] = "BUILD/MODULES/state.lua",
     ["main.lua"] = "BUILD/main.lua",
 --    ["conf.lua"] = "BUILD/conf.lua",
 --    ["MODULES/bench.lua"] = "BUILD/MODULES/bench.lua",

@@ -164,17 +164,22 @@ ffi.cdef[[
 MainCamera = ffi.new("CameraState")
 MainCamera.fov = 600
 
--- ==========================================
--- [9] PRESENTATION / APP STATE
--- Note: EngineState and TargetState are now shared pointers!
--- ==========================================
+-- ========================================================================
+-- [9] PRESENTATION / APP STATE (Boolean SoA)
+-- ========================================================================
 STATE_FREEFLY = 0; STATE_CINEMATIC = 1; STATE_PRESENT = 2; STATE_ZEN = 3; STATE_HIBERNATED = 4; STATE_OVERVIEW = 5
+MAX_STATES = 6
 
-EngineState = ffi.new("int[1]", STATE_ZEN)
-TargetState = ffi.new("int[1]", STATE_ZEN)
+-- Natively unboxed booleans. Zero allocation.
+EngineState = ffi.new("bool[?]", MAX_STATES)
+TargetState = ffi.new("bool[?]", MAX_STATES)
 
 TargetSlide = ffi.new("int[1]")
 ActiveSlide = ffi.new("int[1]")
+
+-- Initialize default state
+EngineState[STATE_ZEN] = true
+TargetState[STATE_ZEN] = true
 
 -- ==========================================
 -- [10] GLOBAL APPLICATION STATE (Merged from sys_state)

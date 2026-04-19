@@ -2,6 +2,7 @@ require("sys_memory")
 require("MODULES.bench")
 
 local ffi = require("ffi")
+local State = require("MODULES.state")
 local CreateSequence = require("sys_sequence")
 local Factory = require("sys_factory")
 local Routine_InitBuffers = require("ROUTINES.init_buffers") -- New
@@ -54,7 +55,9 @@ local function updateTargetSide()
     w, h = Slide_W[id], Slide_H[id]
 
     local distScale = math.max(h, w * (CANVAS_H / CANVAS_W))
-    local pad = (TargetState[0] == STATE_ZEN) and 0 or 200
+
+    local pad = TargetState[STATE_ZEN] and 0 or 200
+
     local dist = (distScale * MainCamera.fov) / CANVAS_H * 1.0 + pad
 
     local fx, fy, fz = sx + nx * dist, sy + ny * dist, sz + nz * dist
@@ -87,23 +90,27 @@ local function TriggerContinuousFlight()
     FlightData.sx, FlightData.sy, FlightData.sz = MainCamera.x, MainCamera.y, MainCamera.z
     FlightData.syaw, FlightData.spitch = MainCamera.yaw, MainCamera.pitch
     FlightData.lerpT = 0
-    EngineState[0] = STATE_CINEMATIC
+
+    State.SetEngine(STATE_CINEMATIC)
+
     snapshotBaked = false
 end
 
 local function ExecuteSlideTransition()
-    if EngineState[0] == STATE_ZEN or EngineState[0] == STATE_HIBERNATED then
+    if EngineState[STATE_ZEN] or EngineState[STATE_HIBERNATED] then
         updateTargetSide("ExecuteSlideTransition [Snap to ZEN]")
         MainCamera.x, MainCamera.y, MainCamera.z = FlightData.tx, FlightData.ty, FlightData.tz
         MainCamera.yaw, MainCamera.pitch = FlightData.tyaw, FlightData.tpitch
-        EngineState[0] = STATE_ZEN
-        TargetState[0] = STATE_ZEN
+
+        State.SetEngine(STATE_ZEN)
+        State.SetTarget(STATE_ZEN)
+
         ActiveSlide[0] = TargetSlide[0]
         MasterTextAlpha = 1.0
         snapshotBaked = false
         UpdateCameraBasis()
     else
-        TargetState[0] = STATE_PRESENT
+        State.SetTarget(STATE_PRESENT)
         TriggerContinuousFlight()
     end
 end
@@ -285,7 +292,7 @@ function love.load()
         Routine_BakeColors(NumTotalTris[0])
     end
 
-    EngineState[0] = STATE_FREEFLY
+    State.SetEngine(STATE_FREEFLY)
 end
 
 local function UpdateFreeflyCamera(dt)
@@ -331,7 +338,7 @@ function love.update(dt)
         Cached_HUD_FPS = string.format("FPS: %d | FRAME: %.2fms (Min: %.2fms / Max: %.2fms)", Display_FPS, Display_Avg, Display_Min, Display_Max)
         Cached_HUD_Mem = string.format("LUA HEAP: %.2f MB", collectgarbage("count") / 1024)
         Cached_HUD_Slide = "SLIDE: " .. (TargetSlide[0] + 1) .. " / " .. NumSlides[0]
-        Cached_HUD_State = "STATE: " .. EngineStateNames[EngineState[0] + 1]
+        Cached_HUD_State = "STATE: " .. State.GetEngineName()
         Cached_HUD_Counts = "SOLIDS: " .. Count_Solid[0] .. " | KINEMATICS: " .. Count_Kinematic[0]
 
         BENCH.ResetRollingStats()
@@ -348,13 +355,11 @@ function love.update(dt)
         return
     end
 
-    if EngineState[0] == STATE_FREEFLY then
-        UpdateFreeflyCamera(dt)
-    end
+    if EngineState[STATE_FREEFLY] then UpdateFreeflyCamera(dt) end
     Seq_Camera:Run(dt)
     -- PERFECT MATCH TO OLD SysText.Update(EngineState, dt)
-    local targetAlpha = (EngineState[0] >= STATE_PRESENT) and 1.0 or 0.0
-    local alphaSpeed = (EngineState[0] == STATE_CINEMATIC) and 50.0 or 3.3
+    local targetAlpha = (EngineState[STATE_PRESENT] or EngineState[STATE_ZEN] or EngineState[STATE_HIBERNATED]) and 1.0 or 0.0
+    local alphaSpeed = EngineState[STATE_CINEMATIC] and 50.0 or 3.3
 
     if MasterTextAlpha < targetAlpha then
         MasterTextAlpha = math.min(targetAlpha, MasterTextAlpha + dt * alphaSpeed)
@@ -367,17 +372,17 @@ function love.update(dt)
     local isTextReady = (MasterTextAlpha == targetAlpha)
 
     -- THE HIBERNATION ENGINE
-    if EngineState[0] == STATE_HIBERNATED then
+    if EngineState[STATE_HIBERNATED] then
         if snapshotBaked then love.timer.sleep(0.25) end
     else
         snapshotBaked = false
     end
 
-    if EngineState[0] == STATE_ZEN and isTextReady then
-        EngineState[0] = STATE_HIBERNATED
+    if EngineState[STATE_ZEN] and isTextReady then
+        State.SetEngine(STATE_HIBERNATED)
     end
 
-    if EngineState[0] ~= STATE_ZEN and EngineState[0] ~= STATE_HIBERNATED then
+    if not EngineState[STATE_ZEN] and not EngineState[STATE_HIBERNATED] then
         -- BENCH.Run("Physics", function()
             -- Seq_Physics:Run(SLICE_KINEMATIC_START, Count_Kinematic[0], dt)
         -- end)
@@ -440,7 +445,7 @@ function love.draw()
 
     love.graphics.setColor(1, 1, 1, 1)
 
-    if EngineState[0] == STATE_ZEN or EngineState[0] == STATE_HIBERNATED then
+    if EngineState[STATE_ZEN] or EngineState[STATE_HIBERNATED] then
         snapshotBaked = true
     end
 end
@@ -449,12 +454,12 @@ function love.keypressed(key)
     elseif key == "j" then
         isMouseCaptured = not isMouseCaptured
         love.mouse.setRelativeMode(isMouseCaptured)
-    elseif EngineState[0] == STATE_FREEFLY and (key == "p" or key == "space") then
+    elseif EngineState[STATE_FREEFLY] and (key == "p" or key == "space") then
         lastFreeX, lastFreeY, lastFreeZ = MainCamera.x, MainCamera.y, MainCamera.z
         lastFreeYaw, lastFreePitch = MainCamera.yaw, MainCamera.pitch
-        TargetState[0] = STATE_PRESENT
+        State.SetTarget(STATE_PRESENT)
         TriggerContinuousFlight()
-    elseif EngineState[0] ~= STATE_FREEFLY and (key == "left" or key == "right") then
+    elseif not EngineState[STATE_FREEFLY] and (key == "left" or key == "right") then
         local oldTarget = TargetSlide[0]
         if key == "right" then
             TargetSlide[0] = (TargetSlide[0] + 1) % NumSlides[0]
@@ -464,7 +469,8 @@ function love.keypressed(key)
         if TargetSlide[0] ~= oldTarget then ExecuteSlideTransition() end
 
     elseif key == "i" or key == "u" then
-        EngineState[0] = STATE_FREEFLY; TargetState[0] = STATE_FREEFLY
+        State.SetEngine(STATE_FREEFLY)
+        State.SetTarget(STATE_FREEFLY)
         if key == "u" then
             MainCamera.x, MainCamera.y, MainCamera.z = lastFreeX, lastFreeY, lastFreeZ
             MainCamera.yaw, MainCamera.pitch = lastFreeYaw, lastFreePitch
@@ -472,14 +478,15 @@ function love.keypressed(key)
         end
 
     elseif key == "z" then
-        if EngineState[0] == STATE_FREEFLY then return end
-        TargetState[0] = (EngineState[0] == STATE_PRESENT) and STATE_ZEN or STATE_PRESENT
+        if EngineState[STATE_FREEFLY] then return end
+        local tempState = EngineState[STATE_PRESENT] and STATE_ZEN or STATE_PRESENT
+        State.SetTarget(tempState)
         TriggerContinuousFlight()
     end
 end
 
 function love.mousemoved(x, y, dx, dy)
-    if isMouseCaptured and EngineState[0] == STATE_FREEFLY then
+    if isMouseCaptured and EngineState[STATE_FREEFLY] then
         local sensitivity = 0.002
         MainCamera.yaw = MainCamera.yaw + (dx * sensitivity)
         MainCamera.pitch = MainCamera.pitch + (dy * sensitivity)
