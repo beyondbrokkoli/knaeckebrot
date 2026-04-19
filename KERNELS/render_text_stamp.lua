@@ -5,7 +5,9 @@ return function(SlideCaches, ActiveSlide, EngineState, Slide_X, Slide_Y, Slide_Z
     return function(CANVAS_W, CANVAS_H, HALF_W, HALF_H, MasterAlpha)
         if MasterAlpha <= 0.01 then return end
         local slide_idx = ActiveSlide[0]
-        local isZen = (EngineState[0] == 3 or EngineState[0] == 4)
+
+        -- FIX: Check the specific boolean indices for ZEN (3) or HIBERNATED (4)
+        local isZen = (EngineState[3] or EngineState[4])
 
         local caches = SlideCaches[slide_idx]
         if not caches then return end
