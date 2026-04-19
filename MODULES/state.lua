@@ -20,7 +20,6 @@ end
 function State.SyncToTarget()
     ffi.copy(EngineState, TargetState, MAX_STATES)
 end
-
 -- Helper for the HUD to avoid iterating or allocating tables
 function State.GetEngineName()
     if EngineState[STATE_FREEFLY] then return "FREEFLY" end
@@ -29,6 +28,15 @@ function State.GetEngineName()
     if EngineState[STATE_ZEN] then return "ZEN" end
     if EngineState[STATE_HIBERNATED] then return "HIBERNATED" end
     if EngineState[STATE_OVERVIEW] then return "OVERVIEW" end
+    return "UNKNOWN"
+end
+function State.GetTargetName()
+    if TargetState[STATE_FREEFLY] then return "FREEFLY" end
+    if TargetState[STATE_CINEMATIC] then return "CINEMATIC" end
+    if TargetState[STATE_PRESENT] then return "PRESENT" end
+    if TargetState[STATE_ZEN] then return "ZEN" end
+    if TargetState[STATE_HIBERNATED] then return "HIBERNATED" end
+    if TargetState[STATE_OVERVIEW] then return "OVERVIEW" end
     return "UNKNOWN"
 end
 

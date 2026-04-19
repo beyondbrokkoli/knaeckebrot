@@ -25,8 +25,9 @@ local Cached_HUD_Mem = ""
 local Cached_HUD_Slide = ""
 local Cached_HUD_State = ""
 local Cached_HUD_Counts = ""
+-- Add a new global variable for the HUD cache at the top of the file:
+local Cached_HUD_Cam = ""
 
--- IMPORTANT: Not local anymore, so Presentation can use it
 function UpdateCameraBasis()
     local cy, sy = math.cos(MainCamera.yaw), math.sin(MainCamera.yaw)
     local cp, sp = math.cos(MainCamera.pitch), math.sin(MainCamera.pitch)
@@ -177,11 +178,19 @@ function love.update(dt)
         HUD_frames = 0
         HUD_timer = 0
 
+        -- X-Ray Vision HUD
         Cached_HUD_FPS = string.format("FPS: %d | FRAME: %.2fms (Min: %.2fms / Max: %.2fms)", Display_FPS, Display_Avg, Display_Min, Display_Max)
         Cached_HUD_Mem = string.format("LUA HEAP: %.2f MB", collectgarbage("count") / 1024)
         Cached_HUD_Slide = "SLIDE: " .. (TargetSlide[0] + 1) .. " / " .. NumSlides[0]
-        Cached_HUD_State = "STATE: " .. State.GetEngineName()
-        Cached_HUD_Counts = "SOLIDS: " .. Count_Solid[0] .. " | KINEMATICS: " .. Count_Kinematic[0]
+        
+        -- DUAL REGISTER STATE TRACKING
+        Cached_HUD_State = string.format("ENGINE: %-12s | TARGET: %-12s", State.GetEngineName(), State.GetTargetName())
+        
+        -- SLICE MEMORY TRACKING
+        Cached_HUD_Counts = string.format("SOLIDS: %-4d | KINE: %-4d | PROC: %-4d", Count_Solid[0], Count_Kinematic[0], Count_Procedural[0])
+        
+        -- Z-AXIS TRACKING
+        Cached_HUD_Cam = string.format("CAM Z: %-8d | TARGET Z: %-8d", MainCamera.z, ProcGen.GetTargetZ())
 
         BENCH.ResetRollingStats()
     end
@@ -199,8 +208,6 @@ function love.update(dt)
 
     if EngineState[STATE_FREEFLY] then UpdateFreeflyCamera(dt) end
     Seq_Camera:Run(dt)
-
-    -- Outsourced state checks!
     Presentation.Update(dt)
 
     if not EngineState[STATE_ZEN] and not EngineState[STATE_HIBERNATED] then
@@ -221,7 +228,7 @@ function love.draw()
     if not snapshotBaked then
         Count_Visible_Solid[0] = 0
         Count_Visible_Kinematic[0] = 0
-        Count_Visible_Procedural[0] = 0 -- Reset the new counter
+        Count_Visible_Procedural[0] = 0
 
         BENCH.Begin("Camera_Cull")
         if Count_Solid[0] > 0 then Seq_Render.Kernels[1](SLICE_SOLID_START, Count_Solid[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
@@ -234,11 +241,8 @@ function love.draw()
         ffi.fill(ScreenPtr, total_pixels * 4, 0)
         ffi.fill(ZBuffer, total_pixels * 4, 0x7F)
 
-        -- Draw Opaque/Baked geometry first
         if Count_Solid[0] > 0 then Seq_Render.Kernels[3](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
         if Count_Procedural[0] > 0 then Seq_Render.Kernels[7](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
-
-        -- Draw Dynamic geometry last
         if Count_Kinematic[0] > 0 then Seq_Render.Kernels[4](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
         BENCH.End("Rasterize")
 
@@ -262,6 +266,9 @@ function love.draw()
     love.graphics.print(Cached_HUD_Slide, 20, 60)
     love.graphics.print(Cached_HUD_State, 20, 80)
     love.graphics.print(Cached_HUD_Counts, 20, 100)
+    
+    -- Print the new Z-axis tracker
+    if Cached_HUD_Cam then love.graphics.print(Cached_HUD_Cam, 20, 120) end
 
     love.graphics.setColor(1, 1, 1, 1)
 
@@ -271,13 +278,15 @@ function love.draw()
 end
 
 function love.keypressed(key)
-    if key == "escape" then love.event.quit()
+    if key == "escape" then 
+        love.event.quit()
     elseif key == "j" then
         isMouseCaptured = not isMouseCaptured
         love.mouse.setRelativeMode(isMouseCaptured)
     else
-        -- Outsourced logic!
+        -- THE IGNITION SWITCH IS NOW CONNECTED
         Presentation.KeyPressed(key)
+        ProcGen.KeyPressed(key)
     end
 end
 

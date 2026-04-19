@@ -60,4 +60,8 @@ function ProcGen.KeyPressed(key)
     end
 end
 
+function ProcGen.GetTargetZ()
+    return TargetZ
+end
+
 return ProcGen
