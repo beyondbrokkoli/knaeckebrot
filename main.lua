@@ -1,8 +1,8 @@
 require("sys_memory")
 require("MODULES.bench")
+State = require("MODULES.state")
 
 local ffi = require("ffi")
-State = require("MODULES.state")
 local Presentation = require("MODULES.presentation")
 local CreateSequence = require("sys_sequence")
 local Routine_InitBuffers = require("ROUTINES.init_buffers")
@@ -12,6 +12,8 @@ local Routine_BakeColors = require("ROUTINES.bake_colors")
 local Seq_Physics = CreateSequence()
 local Seq_Render = CreateSequence()
 local Seq_Camera = CreateSequence()
+
+local ProcGen = require("MODULES.proc_gen")
 
 local HUD_timer = 0
 local HUD_frames = 0
@@ -61,6 +63,14 @@ function love.load()
         Count_BoundSphere, BoundSphere_X, BoundSphere_Y, BoundSphere_Z, BoundSphere_RSq, BoundSphere_Mode,
         Count_BoundBox, BoundBox_X, BoundBox_Y, BoundBox_Z, BoundBox_HW, BoundBox_HH, BoundBox_HT,
         BoundBox_FWX, BoundBox_FWY, BoundBox_FWZ, BoundBox_RTX, BoundBox_RTY, BoundBox_RTZ, BoundBox_UPX, BoundBox_UPY, BoundBox_UPZ, BoundBox_Mode
+    )
+    Seq_Physics:Slot(2, "KERNELS.proc_treadmill", 
+        SLICE_AUTONOMOUS_START, 100, Count_Autonomous,
+        Obj_X, Obj_Y, Obj_Z, Obj_Radius,
+        Obj_FWX, Obj_FWY, Obj_FWZ, Obj_RTX, Obj_RTY, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ,
+        Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount,
+        Vert_LX, Vert_LY, Vert_LZ, Tri_V1, Tri_V2, Tri_V3, Tri_BakedColor,
+        NumTotalVerts, NumTotalTris, MainCamera, EngineState, TargetState
     )
     Seq_Camera:Slot(1, "KERNELS.camera_flight", MainCamera, FlightData, EngineState, TargetState, STATE_CINEMATIC)
     BindRenderSequence()
