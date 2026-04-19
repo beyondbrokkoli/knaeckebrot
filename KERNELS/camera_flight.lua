@@ -11,7 +11,7 @@ end
 
 return function(MainCamera, FlightData, EngineState, TargetState, STATE_CINEMATIC)
     return function(dt)
-        if EngineState[0] ~= STATE_CINEMATIC then return end
+        if not EngineState[STATE_CINEMATIC] then return end
 
         FlightData.lerpT = math_min(1.0, FlightData.lerpT + dt * 1.5)
         local easeT = 1 - (1 - FlightData.lerpT) * (1 - FlightData.lerpT)
@@ -45,7 +45,7 @@ return function(MainCamera, FlightData, EngineState, TargetState, STATE_CINEMATI
             MainCamera.upy = (cy * cp) * cy - (sy * cp) * (-sy)
             MainCamera.upz = -(sp) * cy
 
-            EngineState[0] = TargetState[0]
+            State.SyncToTarget()
         end
     end
 end

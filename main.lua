@@ -2,11 +2,10 @@ require("sys_memory")
 require("MODULES.bench")
 
 local ffi = require("ffi")
-local State = require("MODULES.state")
+State = require("MODULES.state")
+local Presentation = require("MODULES.presentation")
 local CreateSequence = require("sys_sequence")
-local Factory = require("sys_factory")
-local Routine_InitBuffers = require("ROUTINES.init_buffers") -- New
-local Routine_InitText = require("ROUTINES.init_slide_text")
+local Routine_InitBuffers = require("ROUTINES.init_buffers")
 local Routine_BakeLighting = require("ROUTINES.bake_lighting")
 local Routine_BakeColors = require("ROUTINES.bake_colors")
 
@@ -14,7 +13,6 @@ local Seq_Physics = CreateSequence()
 local Seq_Render = CreateSequence()
 local Seq_Camera = CreateSequence()
 
--- Add near the top of main.lua, below your requires
 local HUD_timer = 0
 local HUD_frames = 0
 local HUD_min_dt, HUD_max_dt, HUD_avg_dt = 999.0, 0.0, 0.0
@@ -26,16 +24,8 @@ local Cached_HUD_Slide = ""
 local Cached_HUD_State = ""
 local Cached_HUD_Counts = ""
 
--- Move this OUT of the draw loop so the table is only allocated once!
-local EngineStateNames = {"FREEFLY", "CINEMATIC", "PRESENT", "ZEN", "HIBERNATED"}
-
-local function lerp(a, b, t) return a + (b - a) * t end
-local function lerpAngle(a, b, t)
-    local diff = (b - a + math.pi) % (math.pi * 2) - math.pi
-    return a + diff * t
-end
-
-local function UpdateCameraBasis()
+-- IMPORTANT: Not local anymore, so Presentation can use it
+function UpdateCameraBasis()
     local cy, sy = math.cos(MainCamera.yaw), math.sin(MainCamera.yaw)
     local cp, sp = math.cos(MainCamera.pitch), math.sin(MainCamera.pitch)
     MainCamera.fwx, MainCamera.fwy, MainCamera.fwz = sy * cp, sp, cy * cp
@@ -45,114 +35,12 @@ local function UpdateCameraBasis()
     MainCamera.upz = -MainCamera.fwy * MainCamera.rtx
 end
 
-local function updateTargetSide()
-    local sx, sy, sz, nx, ny, nz, w, h
-    local id = TargetSlide[0]
-    if NumSlides[0] == 0 or id >= NumSlides[0] then return end
-
-    sx, sy, sz = Slide_X[id], Slide_Y[id], Slide_Z[id]
-    nx, ny, nz = Slide_NX[id], Slide_NY[id], Slide_NZ[id]
-    w, h = Slide_W[id], Slide_H[id]
-
-    local distScale = math.max(h, w * (CANVAS_H / CANVAS_W))
-
-    local pad = TargetState[STATE_ZEN] and 0 or 200
-
-    local dist = (distScale * MainCamera.fov) / CANVAS_H * 1.0 + pad
-
-    local fx, fy, fz = sx + nx * dist, sy + ny * dist, sz + nz * dist
-    local bx, by, bz = sx - nx * dist, sy - ny * dist, sz - nz * dist
-
-    local dF = (fx - MainCamera.x)^2 + (fy - MainCamera.y)^2 + (fz - MainCamera.z)^2
-    local dB = (bx - MainCamera.x)^2 + (by - MainCamera.y)^2 + (bz - MainCamera.z)^2
-
-    local dx, dy, dz
-    if dF <= dB then
-        print(string.format("[GATEKEEPER] Routing -> FRONT face. (dF: %.1f <= dB: %.1f)", dF, dB))
-        FlightData.tx, FlightData.ty, FlightData.tz = fx, fy, fz
-        dx, dy, dz = sx - fx, sy - fy, sz - fz
-    else
-        print(string.format("[GATEKEEPER] Routing -> BACK face. (dF: %.1f > dB: %.1f)", dF, dB))
-        FlightData.tx, FlightData.ty, FlightData.tz = bx, by, bz
-        dx, dy, dz = sx - bx, sy - by, sz - bz
-    end
-
-    FlightData.tyaw = math.atan2(dx, dz)
-    FlightData.tpitch = math.atan2(dy, math.sqrt(dx*dx + dz*dz))
-
-    print(string.format("[GATEKEEPER] Final Flight Target: Pos(%.1f, %.1f, %.1f) | Angles(Yaw: %.2f, Pitch: %.2f)",
-        FlightData.tx, FlightData.ty, FlightData.tz, FlightData.tyaw, FlightData.tpitch))
-    print("[GATEKEEPER] ------------------------------------------------\n")
-end
-
-local function TriggerContinuousFlight()
-    updateTargetSide("TriggerContinuousFlight")
-    FlightData.sx, FlightData.sy, FlightData.sz = MainCamera.x, MainCamera.y, MainCamera.z
-    FlightData.syaw, FlightData.spitch = MainCamera.yaw, MainCamera.pitch
-    FlightData.lerpT = 0
-
-    State.SetEngine(STATE_CINEMATIC)
-
-    snapshotBaked = false
-end
-
-local function ExecuteSlideTransition()
-    if EngineState[STATE_ZEN] or EngineState[STATE_HIBERNATED] then
-        updateTargetSide("ExecuteSlideTransition [Snap to ZEN]")
-        MainCamera.x, MainCamera.y, MainCamera.z = FlightData.tx, FlightData.ty, FlightData.tz
-        MainCamera.yaw, MainCamera.pitch = FlightData.tyaw, FlightData.tpitch
-
-        State.SetEngine(STATE_ZEN)
-        State.SetTarget(STATE_ZEN)
-
-        ActiveSlide[0] = TargetSlide[0]
-        MasterTextAlpha = 1.0
-        snapshotBaked = false
-        UpdateCameraBasis()
-    else
-        State.SetTarget(STATE_PRESENT)
-        TriggerContinuousFlight()
-    end
-end
-
 local function BindRenderSequence()
-    -- 1. Cull Solids
-    Seq_Render:Slot(1, "KERNELS.camera_cull",
-        Visible_Solid_IDs, Count_Visible_Solid, Obj_X, Obj_Y, Obj_Z, Obj_Radius, MainCamera
-    )
-    -- 2. Cull Kinematics
-    Seq_Render:Slot(2, "KERNELS.camera_cull",
-        Visible_Kinematic_IDs, Count_Visible_Kinematic, Obj_X, Obj_Y, Obj_Z, Obj_Radius, MainCamera
-    )
-
-    -- 3. Rasterize Solids (Baked Lighting)
-    Seq_Render:Slot(3, "KERNELS.render_rasterize_baked",
-        Visible_Solid_IDs, Count_Visible_Solid, 
-        Obj_X, Obj_Y, Obj_Z, 
-        Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ,
-        Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount,
-        Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid,
-        Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B, 
-        MainCamera, ScreenPtr, ZBuffer
-    )
-
-    -- 4. Rasterize Kinematics (Dynamic Lighting)
-    Seq_Render:Slot(4, "KERNELS.render_rasterize_dynamic",
-        Visible_Kinematic_IDs, Count_Visible_Kinematic, 
-        Obj_X, Obj_Y, Obj_Z, 
-        Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ,
-        Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount,
-        Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid,
-        Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B, 
-        MainCamera, ScreenPtr, ZBuffer
-    )
-
-    -- 5. Text Stamp
-    Seq_Render:Slot(5, "KERNELS.render_text_stamp",
-        SlideTitles, ActiveSlide, EngineState,
-        Slide_X, Slide_Y, Slide_Z, Slide_NX, Slide_NY, Slide_NZ,
-        MainCamera, ScreenPtr, ZBuffer
-    )
+    Seq_Render:Slot(1, "KERNELS.camera_cull", Visible_Solid_IDs, Count_Visible_Solid, Obj_X, Obj_Y, Obj_Z, Obj_Radius, MainCamera)
+    Seq_Render:Slot(2, "KERNELS.camera_cull", Visible_Kinematic_IDs, Count_Visible_Kinematic, Obj_X, Obj_Y, Obj_Z, Obj_Radius, MainCamera)
+    Seq_Render:Slot(3, "KERNELS.render_rasterize_baked", Visible_Solid_IDs, Count_Visible_Solid, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ, Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount, Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B, MainCamera, ScreenPtr, ZBuffer)
+    Seq_Render:Slot(4, "KERNELS.render_rasterize_dynamic", Visible_Kinematic_IDs, Count_Visible_Kinematic, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ, Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount, Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B, MainCamera, ScreenPtr, ZBuffer)
+    Seq_Render:Slot(5, "KERNELS.render_text_stamp", SlideTitles, ActiveSlide, EngineState, Slide_X, Slide_Y, Slide_Z, Slide_NX, Slide_NY, Slide_NZ, MainCamera, ScreenPtr, ZBuffer)
 end
 
 function love.load()
@@ -177,120 +65,11 @@ function love.load()
     Seq_Camera:Slot(1, "KERNELS.camera_flight", MainCamera, FlightData, EngineState, TargetState, STATE_CINEMATIC)
     BindRenderSequence()
 
-    local C_CREAM = 4294306522
-    local C_LATTE = 4292131280
+    -- Outsourced generation!
+    Presentation.Load(12)
 
-    local num_slides = 12
-    local radius = 3500
-    local height_step = 800
-
-    for i = 0, num_slides - 1 do
-        local angle = (i / num_slides) * math.pi * 4 -- 2 full rotations
-        local sx = math.sin(angle) * radius
-        local sy = i * height_step
-        local sz = math.cos(angle) * radius
-
-        -- Slide faces inward toward the center pillar
-        local yaw = angle + math.pi
-        local pitch = -0.1 -- Slight tilt upwards
-
-        local color = (i % 2 == 0) and C_CREAM or C_LATTE
-
-        local slide_id = Factory.CreateSlideMesh(
-            SLICE_SOLID_START, SLICE_SOLID_MAX, Count_Solid,
-            sx, sy, sz, yaw, pitch,
-            1600, 900, 40, color
-        )
-
-        manifest[i] = {
-            title = "SPIRAL ASCENT: LEVEL " .. string.format("%02d", i + 1),
-            content = {
-                "~ \27[36mTELEMETRY:\27[0m X:" .. math.floor(sx) .. " | Y:" .. math.floor(sy) .. " | Z:" .. math.floor(sz),
-                "",
-                "The DOD engine now fully supports 6-DOF slide positioning.",
-                "Notice how the text matrices seamlessly track the rotated normals.",
-                (i % 2 == 0) and "# All geometry shares a single rasterization pass." or "# Physics and collision spheres are fully bound.",
-                "",
-                "~ \27[33mPress Right Arrow to Ascend.\27[0m"
-            }
-        }
-
-        -- ==========================================
-        -- THE CHAOS GENERATOR (Replaces old sparse props)
-        -- ==========================================
-        local objects_per_slide = 25
-        local colors = {0xFF00FFFF, 0xFFFF00FF, 0xFFFFFF00, 0xFF00FF00, 0xFFFF4400}
-
-        for j = 1, objects_per_slide do
-            local px = sx + math.random(-800, 800)
-            local py = sy + math.random(200, 1500)
-            local pz = sz + math.random(-800, 800)
-
-            local size = math.random(50, 150)
-            local prop_color = colors[math.random(1, #colors)]
-            local shape_type = math.random(1, 3)
-            local id = nil
-
-            if shape_type == 1 then
-                id = Factory.CreatePropCube(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, px, py, pz, size, prop_color)
-            elseif shape_type == 2 then
-                id = Factory.CreatePropPyramid(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, px, py, pz, size, prop_color)
-            else
-                id = Factory.CreateDataSpike(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, px, py, pz, size * 1.5, prop_color)
-            end
-
-            if id then
-                Obj_VelX[id] = math.random(-2000, 2000)
-                Obj_VelY[id] = math.random(-1000, 2500)
-                Obj_VelZ[id] = math.random(-2000, 2000)
-
-                Obj_RotSpeedYaw[id] = math.random(-50, 50) / 10.0
-                Obj_RotSpeedPitch[id] = math.random(-50, 50) / 10.0
-            end
-        end
-        -- ==========================================
-
-        -- Add a structural center pillar piece every few slides
-        if i % 3 == 0 then
-            local torus_id = Factory.CreateTorus(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, 0, sy, 0, 1000, 100, 32, 12, 0xFF00FF00)
-            if torus_id then  -- Add this safety check!
-                Obj_RotSpeedYaw[torus_id] = 0.5
-                Obj_RotSpeedPitch[torus_id] = 0.2
-            end
-        end
-        -- Create a Containment Sphere around the slide (Radius 1200, Mode 1 = BOUND_CONTAIN)
-        Factory.CreateBoundSphere(sx, sy, sz, 1200, 1)
-
-        -- Spawn 8 grey cubes trapped inside the sphere
-        for k = 1, 8 do
-            -- Spawn near the center to ensure they start inside the sphere
-            local cx = sx + math.random(-400, 400)
-            local cy = sy + math.random(-400, 400)
-            local cz = sz + math.random(-400, 400)
-
-            local cube_id = Factory.CreatePropCube(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, cx, cy, cz, 60, 0xFF888888)
-
-            if cube_id then
-                Obj_VelX[cube_id] = math.random(-1500, 1500)
-                Obj_VelY[cube_id] = math.random(-1500, 1500)
-                Obj_VelZ[cube_id] = math.random(-1500, 1500)
-                Obj_RotSpeedYaw[cube_id] = math.random(-40, 40) / 10.0
-                Obj_RotSpeedPitch[cube_id] = math.random(-40, 40) / 10.0
-            end
-        end
-    end
-
-    NumSlides[0] = num_slides
-
-    Routine_InitText(manifest, SlideTitles, MainCamera.fov, CANVAS_W, CANVAS_H)
-
-    if Count_Solid[0] > 0 then
-        Routine_BakeLighting(SLICE_SOLID_START, Count_Solid[0])
-    end
-
-    if NumTotalTris[0] > 0 then
-        Routine_BakeColors(NumTotalTris[0])
-    end
+    if Count_Solid[0] > 0 then Routine_BakeLighting(SLICE_SOLID_START, Count_Solid[0]) end
+    if NumTotalTris[0] > 0 then Routine_BakeColors(NumTotalTris[0]) end
 
     State.SetEngine(STATE_FREEFLY)
 end
@@ -315,7 +94,6 @@ local function UpdateFreeflyCamera(dt)
 end
 
 function love.update(dt)
-    -- 1. FRAME TRACKING MATH
     local ms = dt * 1000
     if ms < HUD_min_dt then HUD_min_dt = ms end
     if ms > HUD_max_dt then HUD_max_dt = ms end
@@ -323,18 +101,15 @@ function love.update(dt)
     HUD_frames = HUD_frames + 1
     HUD_timer = HUD_timer + dt
 
-    -- 2. PUBLISH HUD STATS ONCE PER SECOND
     if HUD_timer >= 1.0 then
         Display_FPS = love.timer.getFPS()
         Display_Min = HUD_min_dt
         Display_Max = HUD_max_dt
         Display_Avg = HUD_avg_dt / HUD_frames
-
         HUD_min_dt, HUD_max_dt, HUD_avg_dt = 999.0, 0.0, 0.0
         HUD_frames = 0
         HUD_timer = 0
 
-        -- 100% of String Allocations now happen exactly once per second
         Cached_HUD_FPS = string.format("FPS: %d | FRAME: %.2fms (Min: %.2fms / Max: %.2fms)", Display_FPS, Display_Avg, Display_Min, Display_Max)
         Cached_HUD_Mem = string.format("LUA HEAP: %.2f MB", collectgarbage("count") / 1024)
         Cached_HUD_Slide = "SLIDE: " .. (TargetSlide[0] + 1) .. " / " .. NumSlides[0]
@@ -357,35 +132,11 @@ function love.update(dt)
 
     if EngineState[STATE_FREEFLY] then UpdateFreeflyCamera(dt) end
     Seq_Camera:Run(dt)
-    -- PERFECT MATCH TO OLD SysText.Update(EngineState, dt)
-    local targetAlpha = (EngineState[STATE_PRESENT] or EngineState[STATE_ZEN] or EngineState[STATE_HIBERNATED]) and 1.0 or 0.0
-    local alphaSpeed = EngineState[STATE_CINEMATIC] and 50.0 or 3.3
 
-    if MasterTextAlpha < targetAlpha then
-        MasterTextAlpha = math.min(targetAlpha, MasterTextAlpha + dt * alphaSpeed)
-    elseif MasterTextAlpha > targetAlpha then
-        MasterTextAlpha = math.max(targetAlpha, MasterTextAlpha - dt * alphaSpeed)
-    end
-
-    if MasterTextAlpha <= 0.01 then ActiveSlide[0] = TargetSlide[0] end
-
-    local isTextReady = (MasterTextAlpha == targetAlpha)
-
-    -- THE HIBERNATION ENGINE
-    if EngineState[STATE_HIBERNATED] then
-        if snapshotBaked then love.timer.sleep(0.25) end
-    else
-        snapshotBaked = false
-    end
-
-    if EngineState[STATE_ZEN] and isTextReady then
-        State.SetEngine(STATE_HIBERNATED)
-    end
+    -- Outsourced state checks!
+    Presentation.Update(dt)
 
     if not EngineState[STATE_ZEN] and not EngineState[STATE_HIBERNATED] then
-        -- BENCH.Run("Physics", function()
-            -- Seq_Physics:Run(SLICE_KINEMATIC_START, Count_Kinematic[0], dt)
-        -- end)
         BENCH.Begin("Physics")
         Seq_Physics:Run(SLICE_KINEMATIC_START, Count_Kinematic[0], dt)
         BENCH.End("Physics")
@@ -404,13 +155,11 @@ function love.draw()
         Count_Visible_Solid[0] = 0
         Count_Visible_Kinematic[0] = 0
 
-        -- 1. CAMERA CULL (Zero Allocation)
         BENCH.Begin("Camera_Cull")
         if Count_Solid[0] > 0 then Seq_Render.Kernels[1](SLICE_SOLID_START, Count_Solid[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
         if Count_Kinematic[0] > 0 then Seq_Render.Kernels[2](SLICE_KINEMATIC_START, Count_Kinematic[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
         BENCH.End("Camera_Cull")
 
-        -- 2. RASTERIZE (Zero Allocation)
         BENCH.Begin("Rasterize")
         local total_pixels = CANVAS_W * CANVAS_H
         ffi.fill(ScreenPtr, total_pixels * 4, 0)
@@ -420,7 +169,6 @@ function love.draw()
         if Count_Kinematic[0] > 0 then Seq_Render.Kernels[4](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
         BENCH.End("Rasterize")
 
-        -- 3. TEXT STAMP (Zero Allocation)
         BENCH.Begin("Text_Stamp")
         if Seq_Render.Kernels[5] then Seq_Render.Kernels[5](CANVAS_W, CANVAS_H, HALF_W, HALF_H, MasterTextAlpha) end
         BENCH.End("Text_Stamp")
@@ -436,7 +184,6 @@ function love.draw()
     love.graphics.setColor(0, 1, 0, 1)
     if Font_UI then love.graphics.setFont(Font_UI) end
 
-    -- Draw the pre-calculated string cache (Zero Allocation)
     love.graphics.print(Cached_HUD_FPS, 20, 20)
     love.graphics.print(Cached_HUD_Mem, 20, 40)
     love.graphics.print(Cached_HUD_Slide, 20, 60)
@@ -449,39 +196,15 @@ function love.draw()
         snapshotBaked = true
     end
 end
+
 function love.keypressed(key)
     if key == "escape" then love.event.quit()
     elseif key == "j" then
         isMouseCaptured = not isMouseCaptured
         love.mouse.setRelativeMode(isMouseCaptured)
-    elseif EngineState[STATE_FREEFLY] and (key == "p" or key == "space") then
-        lastFreeX, lastFreeY, lastFreeZ = MainCamera.x, MainCamera.y, MainCamera.z
-        lastFreeYaw, lastFreePitch = MainCamera.yaw, MainCamera.pitch
-        State.SetTarget(STATE_PRESENT)
-        TriggerContinuousFlight()
-    elseif not EngineState[STATE_FREEFLY] and (key == "left" or key == "right") then
-        local oldTarget = TargetSlide[0]
-        if key == "right" then
-            TargetSlide[0] = (TargetSlide[0] + 1) % NumSlides[0]
-        elseif key == "left" then
-            TargetSlide[0] = (TargetSlide[0] - 1 + NumSlides[0]) % NumSlides[0]
-        end
-        if TargetSlide[0] ~= oldTarget then ExecuteSlideTransition() end
-
-    elseif key == "i" or key == "u" then
-        State.SetEngine(STATE_FREEFLY)
-        State.SetTarget(STATE_FREEFLY)
-        if key == "u" then
-            MainCamera.x, MainCamera.y, MainCamera.z = lastFreeX, lastFreeY, lastFreeZ
-            MainCamera.yaw, MainCamera.pitch = lastFreeYaw, lastFreePitch
-            UpdateCameraBasis()
-        end
-
-    elseif key == "z" then
-        if EngineState[STATE_FREEFLY] then return end
-        local tempState = EngineState[STATE_PRESENT] and STATE_ZEN or STATE_PRESENT
-        State.SetTarget(tempState)
-        TriggerContinuousFlight()
+    else
+        -- Outsourced logic!
+        Presentation.KeyPressed(key)
     end
 end
 

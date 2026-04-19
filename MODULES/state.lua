@@ -15,6 +15,12 @@ function State.SetTarget(idx)
     TargetState[idx] = true
 end
 
+-- THE TRUE NATIVE SYNC
+-- Copies the exact byte layout of TargetState into EngineState instantly.
+function State.SyncToTarget()
+    ffi.copy(EngineState, TargetState, MAX_STATES)
+end
+
 -- Helper for the HUD to avoid iterating or allocating tables
 function State.GetEngineName()
     if EngineState[STATE_FREEFLY] then return "FREEFLY" end
