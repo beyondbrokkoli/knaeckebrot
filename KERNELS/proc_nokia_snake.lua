@@ -21,23 +21,28 @@ return function(
     local VCOUNT = (SEGMENTS + 1) * SIDES
     local TCOUNT = SEGMENTS * SIDES * 2
 
-    -- The Mathematical Spine: Ascending Spiral around the Presentation
+    -- The Mathematical Spine: Ascending and Descending Patrol
     local function getSpine(s)
         local t = s * 0.0002
         
-        -- Orbit radius pulses between 2000 and 5000, avoiding the slides at r=3500
+        -- Orbit radius pulses between 2000 and 5000
         local r = 3500 + math_sin(t * 4.1) * 1500
         
         -- X and Z create the orbit around the central pillar
         local x = math_sin(t * 2.5) * r
         local z = math_cos(t * 2.5) * r
         
-        -- Ascend the Y axis alongside the presentation, with some bobbing
-        local y = s * 0.12 + math_sin(t * 3.7) * 600
+        -- THE LOOPING FIX:
+        -- A massive, slow sine wave based on 's'. 
+        -- It oscillates perfectly between Y=400 (bottom slide) and Y=8400 (top slide).
+        local macro_t = s * 0.00005 
+        local y = 4400 - math_cos(macro_t) * 4000 
+        
+        -- Add the secondary rollercoaster bobbing back on top of it
+        y = y + math_sin(t * 3.7) * 600
         
         return x, y, z
     end
-
     -- ==========================================
     -- PHASE 1: PRE-ALLOCATION (The Topology Web)
     -- ==========================================
