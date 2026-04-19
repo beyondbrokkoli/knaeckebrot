@@ -86,9 +86,11 @@ return function(
     local spawn_timer = 0
     local SPAWN_DELAY = 0.05 -- Tweak this to change the snake's speed!
 
-    -- ==========================================
+-- ==========================================
     -- PHASE 2: THE HOT LOOP (Ring-Buffer)
     -- ==========================================
+    local math_min = math.min -- Cache this at the top of your file!
+
     return function(dt)
         spawn_timer = spawn_timer + dt
         
@@ -113,17 +115,34 @@ return function(
             local g_base = (0.4 + intensity * 0.4) * 255
             local b_base = (0.7 + intensity * 0.3) * 255
 
+            -- ==========================================
+            -- THE LIGHTING PIPELINE
+            -- ==========================================
+            local DEBUG_LIGHTING = false -- Change to true to see pure geometric normal mapping!
+
             local tIdx = tStart
             for i = 0, SEGMENTS - 1 do
                 for j = 0, SIDES - 1 do
                     local v_angle = (j / SIDES) * math_pi * 2
-                    
-                    -- Faux Lambertian Light
-                    local light_factor = 0.3 + 0.7 * ((math_sin(v_angle) + math_cos(v_angle)) * 0.5 + 0.5)
-                    
-                    local r = floor(r_base * light_factor)
-                    local g = floor(g_base * light_factor)
-                    local b = floor(b_base * light_factor)
+                    local r, g, b
+
+                    if DEBUG_LIGHTING then
+                        -- Map the local cylinder normal directly to RGB values for debugging
+                        local nx, ny = math_cos(v_angle), math_sin(v_angle)
+                        r = floor((nx * 0.5 + 0.5) * 255)
+                        g = floor((ny * 0.5 + 0.5) * 255)
+                        b = 255 
+                    else
+                        -- Fix 1: Multiply by 0.7071 to cap the sine+cosine wave at exactly 1.0
+                        local angle_val = (math_sin(v_angle) + math_cos(v_angle)) * 0.7071
+                        local light_factor = 0.3 + 0.7 * (angle_val * 0.5 + 0.5)
+                        
+                        -- Fix 2: Clamp at 255 to prevent bitwise memory overflow!
+                        r = math_min(255, floor(r_base * light_factor))
+                        g = math_min(255, floor(g_base * light_factor))
+                        b = math_min(255, floor(b_base * light_factor))
+                    end
+
                     local face_color = bit.bor(0xFF000000, bit.lshift(b, 16), bit.lshift(g, 8), r)
 
                     Tri_BakedColor[tIdx] = face_color; tIdx = tIdx + 1
