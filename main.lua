@@ -28,6 +28,26 @@ local Cached_HUD_State  = ""
 local Cached_HUD_Counts = ""
 local Cached_HUD_Cam    = ""
 
+
+local function UpdateFreeflyCamera(dt)
+    local s = 2000 * dt
+    if love.keyboard.isDown("w") then MainCamera.x, MainCamera.y, MainCamera.z = MainCamera.x + MainCamera.fwx * s, MainCamera.y + MainCamera.fwy * s, MainCamera.z + MainCamera.fwz * s end
+    if love.keyboard.isDown("s") then MainCamera.x, MainCamera.y, MainCamera.z = MainCamera.x - MainCamera.fwx * s, MainCamera.y - MainCamera.fwy * s, MainCamera.z - MainCamera.fwz * s end
+    if love.keyboard.isDown("a") then MainCamera.x, MainCamera.z = MainCamera.x - MainCamera.rtx * s, MainCamera.z - MainCamera.rtz * s end
+    if love.keyboard.isDown("d") then MainCamera.x, MainCamera.z = MainCamera.x + MainCamera.rtx * s, MainCamera.z + MainCamera.rtz * s end
+    if love.keyboard.isDown("e") then MainCamera.y = MainCamera.y - s end
+    if love.keyboard.isDown("q") then MainCamera.y = MainCamera.y + s end
+
+    local rotSpeed = 2.5 * dt
+    if love.keyboard.isDown("left") then MainCamera.yaw = MainCamera.yaw - rotSpeed end
+    if love.keyboard.isDown("right") then MainCamera.yaw = MainCamera.yaw + rotSpeed end
+    if love.keyboard.isDown("up") then MainCamera.pitch = MainCamera.pitch - rotSpeed end
+    if love.keyboard.isDown("down") then MainCamera.pitch = MainCamera.pitch + rotSpeed end
+
+    MainCamera.pitch = math.max(-1.56, math.min(1.56, MainCamera.pitch))
+    UpdateCameraBasis()
+end
+
 function UpdateCameraBasis()
     local cy, sy = math.cos(MainCamera.yaw), math.sin(MainCamera.yaw)
     local cp, sp = math.cos(MainCamera.pitch), math.sin(MainCamera.pitch)
@@ -217,6 +237,8 @@ function love.draw()
         if Count_Procedural[0] > 0 then Seq_Render.Kernels[6](SLICE_PROCEDURAL_START, Count_Procedural[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
         BENCH.End("Camera_Cull")
 
+
+        love.graphics.setColor(1, 1, 1, 1)
         BENCH.Begin("Rasterize")
         ffi.fill(ScreenPtr, CANVAS_W * CANVAS_H * 4, 0)
         ffi.fill(ZBuffer, CANVAS_W * CANVAS_H * 4, 0x7F)
