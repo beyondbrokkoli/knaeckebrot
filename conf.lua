@@ -6,5 +6,5 @@ function love.conf(t)
     t.window.fullscreen = true
     t.window.fullscreentype = "desktop"
     t.window.highdpi = true     -- THIS is the magic flag!
-    t.window.vsync = 0
+    t.window.vsync = 1
 end
