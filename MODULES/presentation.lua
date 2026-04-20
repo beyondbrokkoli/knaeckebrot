@@ -1,190 +1,108 @@
 -- ========================================================================
 -- MODULES/presentation.lua
--- The Deterministic Slide Controller
+-- The Spherical Whispering Gallery (Pure Physics Playground)
 -- ========================================================================
-local ffi = require("ffi")
-local State = require("MODULES.state")
 local Factory = require("sys_factory")
-local Routine_InitText = require("ROUTINES.init_slide_text")
-
 local Presentation = {}
 
-function Presentation.UpdateTargetSide()
-    local sx, sy, sz, nx, ny, nz, w, h
-    local id = TargetSlide[0]
-    if NumSlides[0] == 0 or id >= NumSlides[0] then return end
+-- Quick Vector Math Helpers
+local function normalize(x, y, z)
+    local len = math.sqrt(x*x + y*y + z*z)
+    if len == 0 then return 0, 0, 0 end
+    return x/len, y/len, z/len
+end
 
-    sx, sy, sz = Slide_X[id], Slide_Y[id], Slide_Z[id]
-    nx, ny, nz = Slide_NX[id], Slide_NY[id], Slide_NZ[id]
-    w, h = Slide_W[id], Slide_H[id]
+local function cross(ax, ay, az, bx, by, bz)
+    return ay*bz - az*by, az*bx - ax*bz, ax*by - ay*bx
+end
 
-    local distScale = math.max(h, w * (CANVAS_H / CANVAS_W))
-    local pad = TargetState[STATE_ZEN] and 0 or 200
-    local dist = (distScale * MainCamera.fov) / CANVAS_H * 1.0 + pad
+-- ========================================================================
+-- THE PARABOLA FORGE
+-- Generates a parabolic dish facing ANY arbitrary direction
+-- ========================================================================
+local function BuildDish(vx, vy, vz, ux, uy, uz, focal_length, num_slides)
+    -- (vx, vy, vz) is the Vertex (bottom center of the bowl)
+    -- (ux, uy, uz) is the "Up" vector (the direction the bowl OPENS towards)
+    ux, uy, uz = normalize(ux, uy, uz)
 
-    local fx, fy, fz = sx + nx * dist, sy + ny * dist, sz + nz * dist
-    local bx, by, bz = sx - nx * dist, sy - ny * dist, sz - nz * dist
-
-    local dF = (fx - MainCamera.x)^2 + (fy - MainCamera.y)^2 + (fz - MainCamera.z)^2
-    local dB = (bx - MainCamera.x)^2 + (by - MainCamera.y)^2 + (bz - MainCamera.z)^2
-
-    local dx, dy, dz
-    if dF <= dB then
-        -- print(string.format("[GATEKEEPER] Routing -> FRONT face. (dF: %.1f <= dB: %.1f)", dF, dB))
-        FlightData.tx, FlightData.ty, FlightData.tz = fx, fy, fz
-        dx, dy, dz = sx - fx, sy - fy, sz - fz
+    -- Generate an arbitrary orthogonal basis (Right and Forward vectors)
+    local rx, ry, rz
+    if math.abs(uy) > 0.99 then
+        rx, ry, rz = 1, 0, 0
     else
-        -- print(string.format("[GATEKEEPER] Routing -> BACK face. (dF: %.1f > dB: %.1f)", dF, dB))
-        FlightData.tx, FlightData.ty, FlightData.tz = bx, by, bz
-        dx, dy, dz = sx - bx, sy - by, sz - bz
+        rx, ry, rz = cross(ux, uy, uz, 0, 1, 0)
+        rx, ry, rz = normalize(rx, ry, rz)
     end
+    local fwx, fwy, fwz = cross(rx, ry, rz, ux, uy, uz)
 
-    FlightData.tyaw = math.atan2(dx, dz)
-    FlightData.tpitch = math.atan2(dy, math.sqrt(dx*dx + dz*dz))
-end
-
-function Presentation.TriggerContinuousFlight()
-    Presentation.UpdateTargetSide()
-    FlightData.sx, FlightData.sy, FlightData.sz = MainCamera.x, MainCamera.y, MainCamera.z
-    FlightData.syaw, FlightData.spitch = MainCamera.yaw, MainCamera.pitch
-    FlightData.lerpT = 0
-
-    State.SetEngine(STATE_CINEMATIC)
-    snapshotBaked = false
-end
-
-function Presentation.ExecuteSlideTransition()
-    if EngineState[STATE_ZEN] or EngineState[STATE_HIBERNATED] then
-        Presentation.UpdateTargetSide()
-        MainCamera.x, MainCamera.y, MainCamera.z = FlightData.tx, FlightData.ty, FlightData.tz
-        MainCamera.yaw, MainCamera.pitch = FlightData.tyaw, FlightData.tpitch
-
-        State.SetEngine(STATE_ZEN)
-        State.SetTarget(STATE_ZEN)
-
-        ActiveSlide[0] = TargetSlide[0]
-        MasterTextAlpha = 1.0
-        snapshotBaked = false
-        UpdateCameraBasis() -- Must be global in main.lua
-    else
-        State.SetTarget(STATE_PRESENT)
-        Presentation.TriggerContinuousFlight()
-    end
-end
-
-function Presentation.Load(num_slides)
-    num_slides = num_slides or 12
     local C_CREAM = 4294306522
     local C_LATTE = 4292131280
-    local radius = 3500
-    local height_step = 800
 
     for i = 0, num_slides - 1 do
-        -- Alternate slides between the Left wall and Right wall
-        local isLeftWall = (i % 2 == 0)
-        
-        -- Place them 1600 units apart (X), moving deep into the screen (Z)
-        local sx = isLeftWall and -800 or 800
-        local sy = 0
-        local sz = -(i * 1200) 
-        
-        -- Rotate the left slides to face right (+90 deg), and right slides to face left (-90 deg)
-        local yaw = isLeftWall and (math.pi / 2) or (-math.pi / 2)
-        local pitch = 0
+        -- math.sqrt(t) ensures the area distribution is uniform!
+        -- Without sqrt, slides cluster tightly in the center and leave gaps at the rim.
+        local t = i / math.max(1, (num_slides - 1))
+        local radius = math.sqrt(t) * 4000  
 
-        local color = isLeftWall and C_CREAM or C_LATTE
+        local angle = i * 2.39996323 -- The Golden Angle
 
-        Factory.CreateSlideMesh(SLICE_SOLID_START, SLICE_SOLID_MAX, Count_Solid, sx, sy, sz, yaw, pitch, 1600, 900, 40, color)
-        
-        -- ... (Keep the rest of your manifest and prop spawning logic intact) ...
+        -- Local Parabola Coordinates
+        local u = math.sin(angle) * radius
+        local v = math.cos(angle) * radius
+        local w = (radius * radius) / (4 * focal_length)
 
-        manifest[i+1] = {
-            title = "SPIRAL ASCENT: LEVEL " .. string.format("%02d", i + 1),
-            content = {
-                "~ \27[36mTELEMETRY:\27[0m X:" .. math.floor(sx) .. " | Y:" .. math.floor(sy) .. " | Z:" .. math.floor(sz),
-                "",
-                "The DOD engine now fully supports 6-DOF slide positioning.",
-                "Notice how the text matrices seamlessly track the rotated normals.",
-                (i % 2 == 0) and "# All geometry shares a single rasterization pass." or "# Physics and collision spheres are fully bound.",
-                "",
-                "~ \27[33mPress Right Arrow to Ascend.\27[0m"
-            }
-        }
+        -- 1. Matrix Transform: Local to World Space Position
+        local px = vx + rx*u + fwx*v + ux*w
+        local py = vy + ry*u + fwy*v + uy*w
+        local pz = vz + rz*u + fwz*v + uz*w
 
-        local objects_per_slide = 1
-        local colors = {0xFF00FFFF, 0xFFFF00FF, 0xFFFFFF00, 0xFF00FF00, 0xFFFF4400}
+        -- 2. Calculus Gradient to find the World Normal vector
+        -- The gradient of the parabolic surface w - (u^2+v^2)/4F = 0
+        local nx = (-u / (2 * focal_length)) * rx + (-v / (2 * focal_length)) * fwx + 1.0 * ux
+        local ny = (-u / (2 * focal_length)) * ry + (-v / (2 * focal_length)) * fwy + 1.0 * uy
+        local nz = (-u / (2 * focal_length)) * rz + (-v / (2 * focal_length)) * fwz + 1.0 * uz
+        nx, ny, nz = normalize(nx, ny, nz)
 
-        for j = 1, objects_per_slide do
-            local px = sx + math.random(-800, 800)
-            local py = sy + math.random(200, 1500)
-            local pz = sz + math.random(-800, 800)
-            local size = math.random(50, 150)
-            local prop_color = colors[math.random(1, #colors)]
-            local shape_type = math.random(1, 3)
-            local id = nil
+        -- 3. Convert Normal to Yaw/Pitch
+        -- In our engine, the face normal is -FW, so FW must equal -Normal
+        local target_fwx, target_fwy, target_fwz = -nx, -ny, -nz
+        local pitch = math.asin(math.max(-1, math.min(1, target_fwy)))
+        local yaw = math.atan2(target_fwx, target_fwz)
 
-            if shape_type == 1 then id = Factory.CreatePropCube(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, px, py, pz, size, prop_color)
-            elseif shape_type == 2 then id = Factory.CreatePropPyramid(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, px, py, pz, size, prop_color)
-            else id = Factory.CreateDataSpike(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, px, py, pz, size * 1.5, prop_color) end
+        local color = (i % 2 == 0) and C_CREAM or C_LATTE
 
-            if id then
-                Obj_VelX[id], Obj_VelY[id], Obj_VelZ[id] = math.random(-2000, 2000), math.random(-1000, 2500), math.random(-2000, 2000)
-                Obj_RotSpeedYaw[id], Obj_RotSpeedPitch[id] = math.random(-50, 50) / 10.0, math.random(-50, 50) / 10.0
-            end
-        end
-
-        if i % 3 == 0 then
-            local torus_id = Factory.CreateTorus(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, 0, sy, 0, 1000, 100, 32, 12, 0xFF00FF00)
-            if torus_id then 
-                Obj_RotSpeedYaw[torus_id] = 0.5
-                Obj_RotSpeedPitch[torus_id] = 0.2
-            end
-        end
-
-        Factory.CreateBoundSphere(sx, sy, sz, 1200, 1)
-
-        for k = 1, 8 do
-            local cx = sx + math.random(-400, 400)
-            local cy = sy + math.random(-400, 400)
-            local cz = sz + math.random(-400, 400)
-            local cube_id = Factory.CreatePropCube(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, cx, cy, cz, 60, 0xFF888888)
-
-            if cube_id then
-                Obj_VelX[cube_id], Obj_VelY[cube_id], Obj_VelZ[cube_id] = math.random(-1500, 1500), math.random(-1500, 1500), math.random(-1500, 1500)
-                Obj_RotSpeedYaw[cube_id], Obj_RotSpeedPitch[cube_id] = math.random(-40, 40) / 10.0, math.random(-40, 40) / 10.0
-            end
-        end
-    end
-
-    NumSlides[0] = num_slides
-    Routine_InitText(manifest, SlideTitles, MainCamera.fov, CANVAS_W, CANVAS_H)
-end
-
-function Presentation.Update(dt)
-    local targetAlpha = (EngineState[STATE_PRESENT] or EngineState[STATE_ZEN] or EngineState[STATE_HIBERNATED]) and 1.0 or 0.0
-    local alphaSpeed = EngineState[STATE_CINEMATIC] and 50.0 or 3.3
-
-    if MasterTextAlpha < targetAlpha then
-        MasterTextAlpha = math.min(targetAlpha, MasterTextAlpha + dt * alphaSpeed)
-    elseif MasterTextAlpha > targetAlpha then
-        MasterTextAlpha = math.max(targetAlpha, MasterTextAlpha - dt * alphaSpeed)
-    end
-
-    if MasterTextAlpha <= 0.01 then ActiveSlide[0] = TargetSlide[0] end
-
-    local isTextReady = (MasterTextAlpha == targetAlpha)
-
-    if EngineState[STATE_HIBERNATED] then
-        if snapshotBaked then love.timer.sleep(0.25) end
-    else
-        snapshotBaked = false
-    end
-
-    if EngineState[STATE_ZEN] and isTextReady then
-        State.SetEngine(STATE_HIBERNATED)
+        -- Use MASSIVE overlapping panels (2400x2400) with 200 thickness to seal all gaps!
+        Factory.CreateSlideMesh(SLICE_SOLID_START, SLICE_SOLID_MAX, Count_Solid, px, py, pz, yaw, pitch, 2400, 2400, 200, color)
     end
 end
 
+-- ========================================================================
+-- THE CONSTELLATION BUILDER
+-- ========================================================================
+function Presentation.Load()
+    local D = 7000         -- Distance from the origin to the back of the dish
+    local FOCAL = 3500     -- The focus point relative to the dish vertex
+    
+    -- We have a hard limit of 399 objects in the SOLID memory slice.
+    -- 65 slides * 6 dishes = 390 objects. A perfect fit.
+    local SLIDES_PER_DISH = 65 
+
+    -- Pair 1: X-Axis (Facing inward towards origin)
+    BuildDish( D, 0, 0,   -1, 0, 0,  FOCAL, SLIDES_PER_DISH)
+    BuildDish(-D, 0, 0,    1, 0, 0,  FOCAL, SLIDES_PER_DISH)
+
+    -- Pair 2: Y-Axis 
+    BuildDish(0,  D, 0,    0,-1, 0,  FOCAL, SLIDES_PER_DISH)
+    BuildDish(0, -D, 0,    0, 1, 0,  FOCAL, SLIDES_PER_DISH)
+
+    -- Pair 3: Z-Axis
+    BuildDish(0, 0,  D,    0, 0,-1,  FOCAL, SLIDES_PER_DISH)
+    BuildDish(0, 0, -D,    0, 0, 1,  FOCAL, SLIDES_PER_DISH)
+end
+
+-- Empty stubs so main.lua doesn't crash when it attempts to call them
+function Presentation.Update(dt) end
+--function Presentation.KeyPressed(key) end
 function Presentation.KeyPressed(key)
     if EngineState[STATE_FREEFLY] and (key == "p" or key == "space") then
         lastFreeX, lastFreeY, lastFreeZ = MainCamera.x, MainCamera.y, MainCamera.z
@@ -214,5 +132,4 @@ function Presentation.KeyPressed(key)
         Presentation.TriggerContinuousFlight()
     end
 end
-
 return Presentation
