@@ -1,5 +1,6 @@
 require("sys_memory")
 require("MODULES.bench")
+Factory = require("sys_factory")
 State = require("MODULES.state")
 
 local ffi = require("ffi")
@@ -31,6 +32,52 @@ local Cached_HUD_State = ""
 local Cached_HUD_Counts = ""
 local Cached_HUD_Cam = ""
 
+local bit = require("bit") -- Ensure we have bitwise operations for colors!
+
+local function FireDonutCannon()
+    local burst_count = 5 -- How many donuts per keypress
+    
+    for i = 1, burst_count do
+        -- Safety check so we don't overflow the Kinematic memory slice
+        -- (Assuming your SLICE_KINEMATIC limit gives you enough room)
+        if Count_Kinematic[0] < 1000 then 
+            
+            -- Spawn slightly in front of the camera
+            local spawn_dist = 400 + (math.random() * 600)
+            local px = MainCamera.x + MainCamera.fwx * spawn_dist
+            local py = MainCamera.y + MainCamera.fwy * spawn_dist
+            local pz = MainCamera.z + MainCamera.fwz * spawn_dist
+
+            -- Randomize Sizes
+            local r_maj = math.random(50, 150)
+            local r_min = math.random(10, 40)
+            
+            -- Randomize Neon Colors (Keeping Alpha at 0xFF)
+            local r = math.random(100, 255)
+            local g = math.random(100, 255)
+            local b = math.random(100, 255)
+            local random_color = bit.bor(0xFF000000, bit.lshift(b, 16), bit.lshift(g, 8), r)
+
+            -- 1. Create the base geometry
+            Factory.CreateTorus(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, 
+                                px, py, pz, r_maj, r_min, 24, 12, random_color)
+            
+            -- 2. Grab the memory ID of the donut we JUST created
+            local id = SLICE_KINEMATIC_START + Count_Kinematic[0] - 1
+            
+            -- 3. INJECT PHYSICS! 
+            -- Give it a forward velocity relative to the camera, plus some random spread
+            local power = math.random(1500, 3500)
+            Obj_VelX[id] = (MainCamera.fwx * power) + (math.random() - 0.5) * 500
+            Obj_VelY[id] = (MainCamera.fwy * power) + (math.random() - 0.5) * 500
+            Obj_VelZ[id] = (MainCamera.fwz * power) + (math.random() - 0.5) * 500
+            
+            -- Make it tumble chaotically
+            Obj_RotSpeedYaw[id] = (math.random() - 0.5) * 6.0
+            Obj_RotSpeedPitch[id] = (math.random() - 0.5) * 6.0
+        end
+    end
+end
 
 local function UpdateFreeflyCamera(dt)
     local s = 2000 * dt
@@ -72,7 +119,7 @@ local function BindRenderSequence()
 
     -- RASTERIZE (DYNAMIC): Slot 4 (Kinematic Props - Cubes/Pyramids)
     -- commented out to see whats going on
-    -- Seq_Render:Slot(4, "KERNELS.render_rasterize_dynamic", Visible_Kinematic_IDs, Count_Visible_Kinematic, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ, Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount, Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B, MainCamera, ScreenPtr, ZBuffer)
+    Seq_Render:Slot(4, "KERNELS.render_rasterize_dynamic", Visible_Kinematic_IDs, Count_Visible_Kinematic, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ, Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount, Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B, MainCamera, ScreenPtr, ZBuffer)
 
     -- LIVE TOPOLOGY: Slot 9 (The Megaknot ghost)
     -- Seq_Render:Slot(9, "KERNELS.render_topology_live", MainCamera, ScreenPtr, ZBuffer)
@@ -109,10 +156,11 @@ function love.load()
         NumTotalVerts, NumTotalTris, MainCamera, EngineState, TargetState
     )
     Seq_Camera:Slot(1, "KERNELS.camera_flight", MainCamera, FlightData, EngineState, TargetState, STATE_CINEMATIC)
-    
-    BindRenderSequence()
-    Presentation.Load(12)
 
+    BindRenderSequence()
+--    Presentation.Load(12)
+    Factory.CreateTorus(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic,150, 50, 100, 40, 15, 128, 64, 0xFF888888)
+    Factory.CreateTorus(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, 0, 800, 0, 1000, 100, 32, 12, 0xFF00FF00)
     if Count_Solid[0] > 0 then Routine_BakeLighting(SLICE_SOLID_START, Count_Solid[0]) end
     if NumTotalTris[0] > 0 then Routine_BakeColors(NumTotalTris[0]) end
 
@@ -163,7 +211,7 @@ function love.update(dt)
     ProcGen.Update(dt) -- <== ADD THIS LINE HERE!
     if not EngineState[STATE_ZEN] and not EngineState[STATE_HIBERNATED] then
         --BENCH.Begin("Physics")
-        --Seq_Physics:Run(SLICE_KINEMATIC_START, Count_Kinematic[0], dt)
+        Seq_Physics:Run(SLICE_KINEMATIC_START, Count_Kinematic[0], dt)
         --BENCH.End("Physics")
         -- Run our background builder!
         Seq_Procedural:Run(dt)
@@ -186,7 +234,7 @@ function love.draw()
 
         BENCH.Begin("Camera_Cull")
         if Count_Solid[0] > 0      then Seq_Render.Kernels[1](SLICE_SOLID_START, Count_Solid[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
-        --if Count_Kinematic[0] > 0  then Seq_Render.Kernels[2](SLICE_KINEMATIC_START, Count_Kinematic[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
+        if Count_Kinematic[0] > 0  then Seq_Render.Kernels[2](SLICE_KINEMATIC_START, Count_Kinematic[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
         if Count_Procedural[0] > 0 then Seq_Render.Kernels[6](SLICE_PROCEDURAL_START, Count_Procedural[0], CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
         BENCH.End("Camera_Cull")
 
@@ -198,7 +246,7 @@ function love.draw()
         -- RASTERIZE SEQUENCE
         if Count_Solid[0] > 0      then Seq_Render.Kernels[3](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
         if Count_Procedural[0] > 0 then Seq_Render.Kernels[7](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end
---        if Count_Kinematic[0] > 0  then Seq_Render.Kernels[4](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end -- THE DYNAMIC SLOT
+        if Count_Kinematic[0] > 0  then Seq_Render.Kernels[4](CANVAS_W, CANVAS_H, HALF_W, HALF_H) end -- THE DYNAMIC SLOT
 
         -- TEXT OVERLAY
         if Seq_Render.Kernels[5] then Seq_Render.Kernels[5](CANVAS_W, CANVAS_H, HALF_W, HALF_H, MasterTextAlpha) end
@@ -231,6 +279,9 @@ function love.keypressed(key)
     elseif key == "j" then
         isMouseCaptured = not isMouseCaptured
         love.mouse.setRelativeMode(isMouseCaptured)
+    elseif key == "r" then
+        -- FIRE THE DONUTS!
+        FireDonutCannon()
     else
         -- THE IGNITION SWITCH IS NOW CONNECTED
         Presentation.KeyPressed(key)
