@@ -118,11 +118,8 @@ local function BindRenderSequence()
     Seq_Render:Slot(7, "KERNELS.render_rasterize_baked", Visible_Procedural_IDs, Count_Visible_Procedural, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ, Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount, Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B, MainCamera, ScreenPtr, ZBuffer)
 
     -- RASTERIZE (DYNAMIC): Slot 4 (Kinematic Props - Cubes/Pyramids)
-    -- commented out to see whats going on
     Seq_Render:Slot(4, "KERNELS.render_rasterize_dynamic", Visible_Kinematic_IDs, Count_Visible_Kinematic, Obj_X, Obj_Y, Obj_Z, Obj_RTX, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ, Obj_FWX, Obj_FWY, Obj_FWZ, Obj_VertStart, Obj_VertCount, Obj_TriStart, Obj_TriCount, Vert_LX, Vert_LY, Vert_LZ, Vert_CX, Vert_CY, Vert_CZ, Vert_PX, Vert_PY, Vert_PZ, Vert_Valid, Tri_V1, Tri_V2, Tri_V3, Tri_Color, Tri_BakedColor, Tri_A, Tri_R, Tri_G, Tri_B, MainCamera, ScreenPtr, ZBuffer)
 
-    -- LIVE TOPOLOGY: Slot 9 (The Megaknot ghost)
-    -- Seq_Render:Slot(9, "KERNELS.render_topology_live", MainCamera, ScreenPtr, ZBuffer)
 
     -- OVERLAYS: Slot 5 (The Slide Text)
     Seq_Render:Slot(5, "KERNELS.render_text_stamp", SlideTitles, ActiveSlide, EngineState, Slide_X, Slide_Y, Slide_Z, Slide_NX, Slide_NY, Slide_NZ, MainCamera, ScreenPtr, ZBuffer)
@@ -138,15 +135,15 @@ function love.load()
     UpdateCameraBasis()
 
     -- Physics Sequence (Megaknot Removed - It's Live now)
---    Seq_Physics:Slot(1, "KERNELS.phys_kinematics",
---        Obj_X, Obj_Y, Obj_Z, Obj_VelX, Obj_VelY, Obj_VelZ,
---        Obj_Yaw, Obj_Pitch, Obj_RotSpeedYaw, Obj_RotSpeedPitch,
---        Obj_FWX, Obj_FWY, Obj_FWZ, Obj_RTX, Obj_RTY, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ,
---        UniverseCage,
---        Count_BoundSphere, BoundSphere_X, BoundSphere_Y, BoundSphere_Z, BoundSphere_RSq, BoundSphere_Mode,
---        Count_BoundBox, BoundBox_X, BoundBox_Y, BoundBox_Z, BoundBox_HW, BoundBox_HH, BoundBox_HT,
---        BoundBox_FWX, BoundBox_FWY, BoundBox_FWZ, BoundBox_RTX, BoundBox_RTY, BoundBox_RTZ, BoundBox_UPX, BoundBox_UPY, BoundBox_UPZ, BoundBox_Mode
---    )
+    Seq_Physics:Slot(1, "KERNELS.phys_kinematics",
+        Obj_X, Obj_Y, Obj_Z, Obj_VelX, Obj_VelY, Obj_VelZ,
+        Obj_Yaw, Obj_Pitch, Obj_RotSpeedYaw, Obj_RotSpeedPitch,
+        Obj_FWX, Obj_FWY, Obj_FWZ, Obj_RTX, Obj_RTY, Obj_RTZ, Obj_UPX, Obj_UPY, Obj_UPZ,
+        UniverseCage,
+        Count_BoundSphere, BoundSphere_X, BoundSphere_Y, BoundSphere_Z, BoundSphere_RSq, BoundSphere_Mode,
+        Count_BoundBox, BoundBox_X, BoundBox_Y, BoundBox_Z, BoundBox_HW, BoundBox_HH, BoundBox_HT,
+        BoundBox_FWX, BoundBox_FWY, BoundBox_FWZ, BoundBox_RTX, BoundBox_RTY, BoundBox_RTZ, BoundBox_UPX, BoundBox_UPY, BoundBox_UPZ, BoundBox_Mode
+    )
     Seq_Procedural:Slot(1, "KERNELS.proc_nokia_snake",
         SLICE_PROCEDURAL_START, 100, Count_Procedural,
         Obj_X, Obj_Y, Obj_Z, Obj_Radius,
