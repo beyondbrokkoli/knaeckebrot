@@ -80,16 +80,23 @@ function Presentation.Load(num_slides)
     local height_step = 800
 
     for i = 0, num_slides - 1 do
-        local angle = (i / num_slides) * math.pi * 4
-        local sx = math.sin(angle) * radius
-        local sy = i * height_step
-        local sz = math.cos(angle) * radius
-        local yaw = angle + math.pi
-        local pitch = -0.1
+        -- Alternate slides between the Left wall and Right wall
+        local isLeftWall = (i % 2 == 0)
+        
+        -- Place them 1600 units apart (X), moving deep into the screen (Z)
+        local sx = isLeftWall and -800 or 800
+        local sy = 0
+        local sz = -(i * 1200) 
+        
+        -- Rotate the left slides to face right (+90 deg), and right slides to face left (-90 deg)
+        local yaw = isLeftWall and (math.pi / 2) or (-math.pi / 2)
+        local pitch = 0
 
-        local color = (i % 2 == 0) and C_CREAM or C_LATTE
+        local color = isLeftWall and C_CREAM or C_LATTE
 
         Factory.CreateSlideMesh(SLICE_SOLID_START, SLICE_SOLID_MAX, Count_Solid, sx, sy, sz, yaw, pitch, 1600, 900, 40, color)
+        
+        -- ... (Keep the rest of your manifest and prop spawning logic intact) ...
 
         manifest[i+1] = {
             title = "SPIRAL ASCENT: LEVEL " .. string.format("%02d", i + 1),
@@ -104,7 +111,7 @@ function Presentation.Load(num_slides)
             }
         }
 
-        local objects_per_slide = 25
+        local objects_per_slide = 1
         local colors = {0xFF00FFFF, 0xFFFF00FF, 0xFFFFFF00, 0xFF00FF00, 0xFFFF4400}
 
         for j = 1, objects_per_slide do

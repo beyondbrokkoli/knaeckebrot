@@ -63,10 +63,12 @@ end
 local process_manifest = {
 --    ["KERNELS/proc_megaknot.lua"] = "BUILD/KERNELS/proc_megaknot.lua",
 --    ["sys_sequence.lua"] = "BUILD/sys_sequence.lua",
-    ["main.lua"] = "BUILD/main.lua",
-    ["KERNELS/render_rasterize_dynamic.lua"] = "BUILD/KERNELS/render_rasterize_dynamic.lua",
+--    ["sys_memory.lua"] = "BUILD/sys_memory.lua",
+--    ["main.lua"] = "BUILD/main.lua",
+--    ["KERNELS/render_rasterize_dynamic.lua"] = "BUILD/KERNELS/render_rasterize_dynamic.lua",
 --    ["KERNELS/render_rasterize_baked.lua"] = "BUILD/KERNELS/render_rasterize_baked.lua",
 --    ["KERNELS/phys_kinematics.lua"] = "BUILD/KERNELS/phys_kinematics.lua",
+    ["MODULES/presentation.lua"] = "BUILD/MODULES/presentation.lua",
 }
 local OLD_process_manifest = {
     ["sys_memory.lua"] = "BUILD/sys_memory.lua",

@@ -58,9 +58,25 @@ local function FireDonutCannon()
             local b = math.random(100, 255)
             local random_color = bit.bor(0xFF000000, bit.lshift(b, 16), bit.lshift(g, 8), r)
 
-            -- 1. Create the base geometry
+            -- 1. Track the starting triangle index BEFORE creating the torus
+            local start_tri = NumTotalTris[0]
+
+            -- 2. Create the donut
             Factory.CreateTorus(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, 
                                 px, py, pz, r_maj, r_min, 24, 12, random_color)
+            
+            -- 3. Calculate the ending triangle index AFTER creation
+            local end_tri = NumTotalTris[0] - 1
+
+            -- 4. INLINE BAKE: Replicate bake_colors.lua logic for this specific range
+            for t = start_tri, end_tri do
+                local tc = Tri_Color[t]
+                -- Extract AABBGGRR into the R, G, B, A float channels for the dynamic shader
+                Tri_A[t] = bit.band(bit.rshift(tc, 24), 0xFF)
+                Tri_B[t] = bit.band(bit.rshift(tc, 16), 0xFF)
+                Tri_G[t] = bit.band(bit.rshift(tc, 8), 0xFF)
+                Tri_R[t] = bit.band(tc, 0xFF)
+            end
             
             -- 2. Grab the memory ID of the donut we JUST created
             local id = SLICE_KINEMATIC_START + Count_Kinematic[0] - 1
@@ -155,7 +171,7 @@ function love.load()
     Seq_Camera:Slot(1, "KERNELS.camera_flight", MainCamera, FlightData, EngineState, TargetState, STATE_CINEMATIC)
 
     BindRenderSequence()
---    Presentation.Load(12)
+    Presentation.Load(12)
     Factory.CreateTorus(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic,150, 50, 100, 40, 15, 128, 64, 0xFF888888)
     Factory.CreateTorus(SLICE_KINEMATIC_START, SLICE_KINEMATIC_MAX, Count_Kinematic, 0, 800, 0, 1000, 100, 32, 12, 0xFF00FF00)
     if Count_Solid[0] > 0 then Routine_BakeLighting(SLICE_SOLID_START, Count_Solid[0]) end
