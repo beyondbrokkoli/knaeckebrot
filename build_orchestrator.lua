@@ -60,7 +60,7 @@ local function copy_file(src, dest)
     f_out:close()
     return true
 end
-local process_manifest = {
+local OLD_process_manifest = {
 --    ["KERNELS/proc_megaknot.lua"] = "BUILD/KERNELS/proc_megaknot.lua",
 --    ["sys_sequence.lua"] = "BUILD/sys_sequence.lua",
 --    ["sys_memory.lua"] = "BUILD/sys_memory.lua",
@@ -70,30 +70,30 @@ local process_manifest = {
 --    ["KERNELS/phys_kinematics.lua"] = "BUILD/KERNELS/phys_kinematics.lua",
     ["MODULES/presentation.lua"] = "BUILD/MODULES/presentation.lua",
 }
-local OLD_process_manifest = {
-    ["sys_memory.lua"] = "BUILD/sys_memory.lua",
-    ["sys_factory.lua"] = "BUILD/sys_factory.lua",
-    ["sys_sequence.lua"] = "BUILD/sys_sequence.lua",
-    ["KERNELS/camera_flight.lua"] = "BUILD/KERNELS/camera_flight.lua",
-    ["KERNELS/camera_cull.lua"] = "BUILD/KERNELS/camera_cull.lua",
-    ["KERNELS/render_rasterize_baked.lua"] = "BUILD/KERNELS/render_rasterize_baked.lua",
-    ["KERNELS/render_rasterize_dynamic.lua"] = "BUILD/KERNELS/render_rasterize_dynamic.lua",
-    ["KERNELS/phys_kinematics.lua"] = "BUILD/KERNELS/phys_kinematics.lua",
+local process_manifest = {
+--    ["sys_memory.lua"] = "BUILD/sys_memory.lua",
+--    ["sys_factory.lua"] = "BUILD/sys_factory.lua",
+--    ["sys_sequence.lua"] = "BUILD/sys_sequence.lua",
+--    ["KERNELS/camera_flight.lua"] = "BUILD/KERNELS/camera_flight.lua",
+--    ["KERNELS/camera_cull.lua"] = "BUILD/KERNELS/camera_cull.lua",
+--    ["KERNELS/render_rasterize_baked.lua"] = "BUILD/KERNELS/render_rasterize_baked.lua",
+--    ["KERNELS/render_rasterize_dynamic.lua"] = "BUILD/KERNELS/render_rasterize_dynamic.lua",
+--    ["KERNELS/phys_kinematics.lua"] = "BUILD/KERNELS/phys_kinematics.lua",
     ["KERNELS/render_text_stamp.lua"] = "BUILD/KERNELS/render_text_stamp.lua",
-    ["ROUTINES/init_buffers.lua"] = "BUILD/ROUTINES/init_buffers.lua",
+--    ["ROUTINES/init_buffers.lua"] = "BUILD/ROUTINES/init_buffers.lua",
     ["ROUTINES/init_slide_text.lua"] = "BUILD/ROUTINES/init_slide_text.lua",
-    ["ROUTINES/bake_lighting.lua"] = "BUILD/ROUTINES/bake_lighting.lua",
-    ["ROUTINES/bake_colors.lua"] = "BUILD/ROUTINES/bake_colors.lua",
+--    ["ROUTINES/bake_lighting.lua"] = "BUILD/ROUTINES/bake_lighting.lua",
+--    ["ROUTINES/bake_colors.lua"] = "BUILD/ROUTINES/bake_colors.lua",
     ["MODULES/text_anchor.lua"] = "BUILD/MODULES/text_anchor.lua",
     ["MODULES/text_lexer.lua"] = "BUILD/MODULES/text_lexer.lua",
     ["MODULES/text_math.lua"] = "BUILD/MODULES/text_math.lua",
     ["MODULES/text_baker.lua"] = "BUILD/MODULES/text_baker.lua",
-    ["MODULES/rasterize_triangle.lua"] = "BUILD/MODULES/rasterize_triangle.lua",
-    ["MODULES/state.lua"] = "BUILD/MODULES/state.lua",
-    ["MODULES/presentation.lua"] = "BUILD/MODULES/presentation.lua",
-    ["KERNELS/proc_treadmill.lua"] = "BUILD/KERNELS/proc_treadmill.lua",
-    ["MODULES/proc_gen.lua"] = "BUILD/MODULES/proc_gen.lua",
-    ["main.lua"] = "BUILD/main.lua",
+--    ["MODULES/rasterize_triangle.lua"] = "BUILD/MODULES/rasterize_triangle.lua",
+--    ["MODULES/state.lua"] = "BUILD/MODULES/state.lua",
+--    ["MODULES/presentation.lua"] = "BUILD/MODULES/presentation.lua",
+--    ["KERNELS/proc_treadmill.lua"] = "BUILD/KERNELS/proc_treadmill.lua",
+--    ["MODULES/proc_gen.lua"] = "BUILD/MODULES/proc_gen.lua",
+--    ["main.lua"] = "BUILD/main.lua",
 --    ["conf.lua"] = "BUILD/conf.lua",
 --    ["MODULES/bench.lua"] = "BUILD/MODULES/bench.lua",
 }
